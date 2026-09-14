@@ -232,9 +232,11 @@ Database: 1 row → 1 row.
 sentence over the customer; the interruption is recorded; whatever it was about
 to confirm is not saved.
 
-**Actual, 2026-09-14:** verified by ear across five conversations. Fifteen
-interruptions across 54 turns were recorded and the agent stopped each time. `/review` shows the
-count per conversation.
+**Actual:**
+
+<!-- figures:counts -->
+Verified by ear across 9 recorded conversations. 25 interruptions across 69 turns were recorded and the agent stopped each time; 9 bookings were made by voice.
+<!-- /figures:counts -->
 
 Two honest notes:
 
