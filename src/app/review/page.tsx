@@ -53,6 +53,7 @@ type Summary = {
       turnEndToAudible: Stats | null
       turnEndToAnswer: Stats | null
     }
+    answerNotMeasured: number
     uninterrupted: { turnEndToAudio: Stats | null; turnEndToAudible: Stats | null }
     withLookup: { turns: number; turnEndToAudio: Stats | null; turnEndToAnswer: Stats | null }
     withoutLookup: { turns: number; turnEndToAudio: Stats | null }

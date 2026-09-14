@@ -342,7 +342,16 @@ export class RealtimeVoiceClient {
     }
 
     const calls = (response?.output ?? []).filter((item) => item.type === 'function_call')
-    if (calls.length === 0) return
+
+    if (calls.length === 0) {
+      // This response carried the spoken reply, so the turn is over. A short
+      // grace lets the audible-onset check land before the sample is closed.
+      const pending = this.pending
+      if (pending && pending.finalizeTimer === null) {
+        pending.finalizeTimer = setTimeout(() => this.finalisePending(), AUDIBLE_GRACE_MS)
+      }
+      return
+    }
 
     if (this.pending) this.pending.toolCalls += calls.length
 
@@ -420,14 +429,13 @@ export class RealtimeVoiceClient {
 
     if (pending.awaitingAnswer && pending.answerMs === null) {
       pending.answerMs = Math.round(at - pending.startedAt)
-      this.finalisePending()
-      return
     }
 
-    // A turn with no lookup is finished as soon as the audible check lands.
-    if (pending.toolCalls === 0 && pending.finalizeTimer === null) {
-      pending.finalizeTimer = setTimeout(() => this.finalisePending(), AUDIBLE_GRACE_MS)
-    }
+    // Deliberately no timer here. Closing the sample on a timer after the first
+    // audio was the original bug: on a turn with a lookup the acknowledgement
+    // takes about a second to speak, so response.done — which is what reveals
+    // that a lookup happened at all — always arrived too late to be counted.
+    // The sample is now closed by response.done instead, which always comes.
   }
 
   private finalisePending(): void {

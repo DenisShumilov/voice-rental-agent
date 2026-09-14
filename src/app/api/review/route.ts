@@ -81,21 +81,39 @@ export async function GET() {
 
   type ClassifiedSample = Record<string, unknown> & {
     sessionId: string
+    lookups: number
     followedInterruption: boolean
   }
 
-  const allSamples: ClassifiedSample[] = eventRows
-    .filter((row) => row.type === 'latency')
-    .map((row) => {
-      const sample = JSON.parse(row.payload) as Record<string, unknown>
-      return {
-        ...sample,
-        sessionId: row.session_id,
-        followedInterruption:
-          interruptedTurns.get(row.session_id)?.has(Number(sample.turn)) === true ||
-          sample.clean === false,
-      }
+  // How many database lookups a turn needed is also derived from the event
+  // order rather than trusted from the browser: tool calls recorded between one
+  // turn's latency sample and the next belong to that next turn. Deriving it
+  // here rather than in the client is what lets sessions recorded before the
+  // client counted correctly still be classified.
+  const lookupsSinceLastTurn = new Map<string, number>()
+  const allSamples: ClassifiedSample[] = []
+
+  for (const row of eventRows) {
+    if (row.type === 'tool_call') {
+      const session = row.session_id
+      lookupsSinceLastTurn.set(session, (lookupsSinceLastTurn.get(session) ?? 0) + 1)
+      continue
+    }
+    if (row.type !== 'latency') continue
+
+    const sample = JSON.parse(row.payload) as Record<string, unknown>
+    const lookups = lookupsSinceLastTurn.get(row.session_id) ?? 0
+    lookupsSinceLastTurn.set(row.session_id, 0)
+
+    allSamples.push({
+      ...sample,
+      sessionId: row.session_id,
+      lookups,
+      followedInterruption:
+        interruptedTurns.get(row.session_id)?.has(Number(sample.turn)) === true ||
+        sample.clean === false,
     })
+  }
 
   // Samples recorded before the measurement definition was corrected carry the
   // old field names. They are kept but excluded, and counted so the omission is
@@ -105,11 +123,23 @@ export async function GET() {
   )
   const superseded = allSamples.length - current.length
   const uninterrupted = current.filter((sample) => !sample.followedInterruption)
-  const withLookup = current.filter((sample) => Number(sample.toolCalls ?? 0) > 0)
-  const withoutLookup = current.filter((sample) => Number(sample.toolCalls ?? 0) === 0)
+  const withLookup = current.filter((sample) => sample.lookups > 0)
+  const withoutLookup = current.filter((sample) => sample.lookups === 0)
 
   const numbers = (samples: ClassifiedSample[], field: string): number[] =>
     samples.map((sample) => sample[field]).filter((v): v is number => typeof v === 'number')
+
+  /**
+   * A turn needed a lookup, but the browser that recorded it did not know that
+   * — it closed the sample before the tool call was reported, so its "answer"
+   * figure is really the acknowledgement. Those turns are excluded from the
+   * answer statistics rather than quietly flattering them.
+   */
+  const answerMeasured = (sample: ClassifiedSample): boolean =>
+    sample.lookups === 0 || Number(sample.toolCalls ?? 0) > 0
+
+  const answerable = current.filter(answerMeasured)
+  const answerNotMeasured = current.length - answerable.length
 
   const voiceMinutes = sessions
     .filter((session) => (session.counts.usage ?? 0) > 0)
@@ -151,19 +181,24 @@ export async function GET() {
       allTurns: {
         turnEndToAudio: summarise(current.map((s) => Number(s.turnEndToAudioMs))),
         turnEndToAudible: summarise(numbers(current, 'turnEndToAudibleMs')),
-        turnEndToAnswer: summarise(numbers(current, 'turnEndToAnswerMs')),
+        turnEndToAnswer: summarise(numbers(answerable, 'turnEndToAnswerMs')),
       },
+      answerNotMeasured,
       uninterrupted: {
         turnEndToAudio: summarise(uninterrupted.map((s) => Number(s.turnEndToAudioMs))),
         turnEndToAudible: summarise(numbers(uninterrupted, 'turnEndToAudibleMs')),
-        turnEndToAnswer: summarise(numbers(uninterrupted, 'turnEndToAnswerMs')),
+        turnEndToAnswer: summarise(
+          numbers(uninterrupted.filter(answerMeasured), 'turnEndToAnswerMs'),
+        ),
       },
       // Split by whether the turn had to consult the database. This is where
       // the acknowledgement changes things, and where it does not.
       withLookup: {
         turns: withLookup.length,
         turnEndToAudio: summarise(withLookup.map((s) => Number(s.turnEndToAudioMs))),
-        turnEndToAnswer: summarise(numbers(withLookup, 'turnEndToAnswerMs')),
+        turnEndToAnswer: summarise(
+          numbers(withLookup.filter(answerMeasured), 'turnEndToAnswerMs'),
+        ),
       },
       withoutLookup: {
         turns: withoutLookup.length,
