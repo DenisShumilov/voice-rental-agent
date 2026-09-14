@@ -75,7 +75,7 @@ export default function StorefrontPage() {
       {/* On a narrow screen the panel comes second, before the shelf: the thing
           you are meant to do should not sit below the catalogue. On a wide one
           it moves to the right and stays with you as the shelf scrolls. */}
-      <div className="flex flex-col gap-8 py-10 lg:grid lg:grid-cols-[1fr_360px] lg:items-start lg:gap-10">
+      <div className="flex flex-col gap-8 py-10 lg:grid lg:grid-cols-[1fr_360px] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-10">
         <div className="order-1">
           <h1 className="text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl">
             {BRAND.headline}
