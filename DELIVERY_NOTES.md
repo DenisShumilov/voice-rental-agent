@@ -52,6 +52,7 @@ rather than polished, because the brief weights correctness and evidence at 80%.
 | **Claude Opus 5**, 9 agents with web access | Scouting reusable components, checking licences and repo liveness |
 | **Claude Opus 5**, 21 agents | Adversarial review: attacking the booking invariants, then verifying each finding |
 | **ChatGPT** (browser) | Researching how real rental catalogues present availability and day rates |
+| **ChatGPT image generation** (browser) | The three product photographs, generated as one set against a single specified backdrop, light direction and camera angle |
 
 The code is AI-generated throughout. What I contributed is the architecture —
 the four-gate confirmation, the token-per-version design, the decision to put
@@ -418,6 +419,14 @@ re-runs all of it on demand. Not on the storefront's appearance.
 | Project scaffold | `create-next-app` | MIT |
 | WebRTC connection sequence (~30 lines: peer connection, `oai-events` data channel, SDP exchange) | OpenAI's official WebRTC guide | docs sample |
 | `@libsql/client`, `zod`, `vitest`, `tsx`, Tailwind | npm | MIT / Apache-2.0 |
+| The three product photographs | Generated, not stock | — |
+
+The photographs are AI-generated and are the only images in the project. Stock
+search was tried first and abandoned: three separately-shot photographs of a
+camera, a tripod and a microphone never share a backdrop or a light direction,
+and a shelf of three mismatched product shots reads worse than no shelf at all.
+Generating them as one set against a specified backdrop, light and angle solved
+that. They depict no real product and carry no branding.
 
 Everything else is written for this brief: the availability engine, the draft
 state machine, the four-gate confirmation, the tool layer and its validation,

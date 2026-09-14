@@ -133,16 +133,19 @@ export default function StorefrontPage() {
 function ProductCard({ item, hasDates }: { item: ShelfItem; hasDates: boolean }) {
   const free = item.availableForDates
   const soldOut = hasDates && free === 0
+  // A missing photograph falls back to the SKU tile rather than a broken image.
+  const [imageFailed, setImageFailed] = useState(false)
 
   return (
     <article className="flex flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface">
       <div className="relative aspect-[4/3] bg-surface-2">
-        {item.image ? (
+        {item.image && !imageFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={item.image}
             alt={item.subtitle}
-            className="h-full w-full object-cover saturate-[.92] contrast-[1.02]"
+            onError={() => setImageFailed(true)}
+            className="h-full w-full object-cover"
           />
         ) : (
           <span className="absolute inset-0 flex items-center justify-center font-mono text-2xl tracking-[0.2em] text-text-muted/40">
