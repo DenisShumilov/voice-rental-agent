@@ -64,11 +64,13 @@ type Summary = {
   }
   cost: {
     breakdown: Record<string, number> | null
+    ifFullTier: Record<string, number> | null
     voiceMinutes: number
     pricing: {
       verifiedOn: string
       source: string
       realtimeMini: Record<string, string | number>
+      realtimeFull: Record<string, string | number>
       transcription: { model: string; usdPerMinute: number }
       anchor: { model: string; usdPerMinute: number }
     }
@@ -76,7 +78,7 @@ type Summary = {
       verifiedOn: string
       sources: string[]
       current: Array<{ item: string; usdPerMonth: number; note: string }>
-      ifRunCommercially: Array<{ item: string; usdPerMonth: number; note: string }>
+      atListPrice: Array<{ item: string; usdPerMonth: number; note: string }>
     }
   }
   checks: { total: number }
@@ -227,7 +229,7 @@ export default function ReviewPage() {
                 <Table
                   head={['Measure', 'n', 'min', 'median', 'p95', 'max']}
                   rows={[
-                    statsRow('Turn end → answer begins (ms)', summary.latency.allTurns.turnEndToAudio),
+                    statsRow('Turn end → any audio begins (ms)', summary.latency.allTurns.turnEndToAudio),
                     ...(summary.latency.allTurns.turnEndToAudible
                       ? [statsRow('Turn end → actually audible (ms)', summary.latency.allTurns.turnEndToAudible)]
                       : []),
@@ -343,9 +345,11 @@ export default function ReviewPage() {
               ]}
             />
             <p className="mt-2 text-xs text-text-muted">
-              Every row above is charged; they sum to the total. Cached tokens are a subset of the
-              input counts, so they are billed at the cached rate and subtracted from the uncached
-              row rather than added on top.
+              Every row above is charged, and the total is their exact sum. The rows are printed
+              rounded to four decimals, so adding up what is on screen can miss the total by a
+              hundredth of a cent. Cached tokens are a subset of the input counts, so they are
+              billed at the cached rate and subtracted from the uncached row rather than added on
+              top.
             </p>
             <p className="mt-3 text-sm">
               <strong className="font-mono">
@@ -353,8 +357,10 @@ export default function ReviewPage() {
               </strong>{' '}
               <span className="text-text-muted">
                 over {summary.cost.breakdown.minutes.toFixed(1)} recorded minutes and{' '}
-                {summary.cost.breakdown.responses} responses. Token counts are the ones the API
-                reported, not an estimate of speech.
+                {summary.cost.breakdown.responses} responses. The token counts are the ones the
+                API reported, not an estimate of speech. A minute here is wall-clock conversation —
+                first to last recorded event in a session, summed across sessions — not minutes of
+                audio, so it includes the time the customer spent thinking.
               </span>
             </p>
             <p className="mt-5 mb-2 text-sm font-medium">Rates these figures were multiplied by</p>
@@ -376,6 +382,25 @@ export default function ReviewPage() {
               {summary.cost.pricing.anchor.usdPerMinute} per minute, so a computed figure far from
               that order would mean the arithmetic is wrong.
             </p>
+
+            {summary.cost.ifFullTier?.usdPerMinute != null &&
+              summary.cost.breakdown.usdPerMinute != null && (
+                <p className="mt-3 text-sm text-text-muted">
+                  <strong className="font-medium text-text">Why the cheaper tier.</strong> The same
+                  recorded tokens priced at the full{' '}
+                  <Mono>{summary.cost.pricing.realtimeFull.model}</Mono> tier come to{' '}
+                  <span className="font-mono">
+                    {usd(summary.cost.ifFullTier.usdPerMinute)} per minute
+                  </span>
+                  , which is{' '}
+                  {(
+                    summary.cost.ifFullTier.usdPerMinute / summary.cost.breakdown.usdPerMinute
+                  ).toFixed(1)}
+                  × what we pay. Every decision that has to be correct is made by the database, so
+                  the model only has to hear and speak — that does not need the stronger tier.
+                  Transcription is billed per minute either way, so both figures include it.
+                </p>
+              )}
 
             <HostingTable hosting={summary.cost.hosting} />
           </>
@@ -583,13 +608,14 @@ function HostingTable({ hosting }: { hosting: Summary['cost']['hosting'] }) {
         rows={[
           ...hosting.current.map((row) => [row.item, usd(row.usdPerMonth), row.note]),
           ['Current total', usd(total(hosting.current)), ''],
-          ...hosting.ifRunCommercially.map((row) => [row.item, usd(row.usdPerMonth), row.note]),
-          ['If run commercially', usd(total(hosting.ifRunCommercially)), ''],
+          ...hosting.atListPrice.map((row) => [row.item, usd(row.usdPerMonth), row.note]),
+          ['List price of those same tiers', usd(total(hosting.atListPrice)), ''],
         ]}
       />
       <p className="mt-2 text-xs text-text-muted">
-        Free credit is valued at list price above; the free tiers are free to us, not free to run.
-        Read from {hosting.sources.join(' and ')} on {hosting.verifiedOn}.
+        This runs on free tiers, so hosting costs us nothing — but a free tier is not a free
+        service, so the list price of the same capacity is shown beside it rather than reported as
+        zero. Read from {hosting.sources.join(' and ')} on {hosting.verifiedOn}.
       </p>
     </div>
   )

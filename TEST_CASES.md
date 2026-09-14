@@ -235,7 +235,7 @@ to confirm is not saved.
 **Actual:**
 
 <!-- figures:counts -->
-Verified by ear across 10 recorded conversations. 25 interruptions across 71 turns were recorded and the agent stopped each time; 9 bookings were made by voice.
+Verified by ear across 11 recorded conversations. 25 interruptions across 71 turns were recorded and the agent stopped each time; 9 bookings were made by voice.
 <!-- /figures:counts -->
 
 Two honest notes:

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "reset-db": "node --env-file-if-exists=.env --import tsx scripts/reset-db.ts",
+    "sync-catalog": "node --env-file-if-exists=.env --import tsx scripts/sync-catalog.ts",
     "test": "vitest run",
     "doctor": "node --import tsx scripts/doctor.ts",
     "check": "tsc --noEmit && vitest run && npm run doctor",

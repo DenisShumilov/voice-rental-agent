@@ -37,8 +37,13 @@ export default function StorefrontPage() {
   const [shelf, setShelf] = useState<ShelfItem[]>(INITIAL_SHELF)
   const [open, setOpen] = useState(false)
 
-  const startDate = session.request?.startDate ?? session.booking?.startDate ?? null
-  const endDate = session.request?.endDate ?? session.booking?.endDate ?? null
+  // Once a new request exists, the shelf answers for THAT request — even
+  // before it has dates. Falling back to the last booking's dates here made the
+  // page state a range the conversation had already moved past, while the agent
+  // was busy asking for the new one.
+  const live = session.request
+  const startDate = live ? live.startDate : (session.booking?.startDate ?? null)
+  const endDate = live ? live.endDate : (session.booking?.endDate ?? null)
 
   // When the conversation settles on dates, the shelf re-answers for those
   // dates. This is the moment the page stops being a brochure.

@@ -6,10 +6,24 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { closeDb, getDb } from '@/lib/db'
 
+// process.env is shared with every other test file, and each of them points
+// DATABASE_URL at its own scratch database. Deleting the key here rather than
+// restoring it made the suite fail intermittently: another file's next getDb()
+// would see no URL, reopen the default database mid-test, and lose its rows.
+const saved = {
+  url: process.env.DATABASE_URL,
+  token: process.env.DATABASE_AUTH_TOKEN,
+}
+
+function restore(key: 'DATABASE_URL' | 'DATABASE_AUTH_TOKEN', value: string | undefined) {
+  if (value === undefined) delete process.env[key]
+  else process.env[key] = value
+}
+
 afterEach(() => {
   closeDb()
-  delete process.env.DATABASE_URL
-  delete process.env.DATABASE_AUTH_TOKEN
+  restore('DATABASE_URL', saved.url)
+  restore('DATABASE_AUTH_TOKEN', saved.token)
 })
 
 describe('getDb', () => {

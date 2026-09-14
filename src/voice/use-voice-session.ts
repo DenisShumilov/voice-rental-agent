@@ -115,6 +115,11 @@ export function useVoiceSession() {
     clientRef.current?.disconnect()
     clientRef.current = null
     setState('idle')
+    // The draft dies with the conversation — its token is server-side and a new
+    // session cannot redeem it — so leaving "Awaiting your confirmation" on
+    // screen would claim a hold that no longer exists. Confirmed bookings stay:
+    // those are real rows.
+    setRequest(null)
   }, [])
 
   useEffect(() => {

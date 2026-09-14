@@ -63,8 +63,13 @@ export const HOSTING = {
     { item: 'Vercel Hobby', usdPerMonth: 0, note: 'Non-commercial use only' },
     { item: 'Turso Free', usdPerMonth: 0, note: '5 GB, 500M row reads per month' },
   ],
-  ifRunCommercially: [
-    { item: 'Vercel Pro', usdPerMonth: 20, note: 'Required for any commercial deployment' },
-    { item: 'Turso Developer', usdPerMonth: 5.99, note: 'Billed monthly' },
+  /**
+   * What the tiers we use for free are worth. Not a plan to buy them — the
+   * brief's rule is that free credits are not zero operating cost, so the
+   * number is stated rather than reported as zero.
+   */
+  atListPrice: [
+    { item: 'Vercel Pro', usdPerMonth: 20, note: 'The paid tier above Hobby' },
+    { item: 'Turso Developer', usdPerMonth: 5.99, note: 'The paid tier above Free' },
   ],
 } as const

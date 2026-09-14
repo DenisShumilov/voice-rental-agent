@@ -87,24 +87,28 @@ Open `http://localhost:3000`, allow the microphone, press **Start talking**.
 | Command | What it does |
 |---|---|
 | `npm run dev` | development server |
-| `npm run reset-db` | drops and rebuilds the database, reloads catalogue and seed |
+| `npm run reset-db` | rebuilds the database and reloads catalogue and seed. Recorded events — the latency and cost evidence — are carried across; `--wipe-events` drops those too |
+| `npm run sync-catalog` | adds or updates `items` rows from the catalogue without dropping anything. This is the command to run after editing `src/config/catalog.ts` |
 | `npm test` | 60 unit and integration tests |
 | `npm run doctor` | checks that changeable values live in exactly one file |
 | `npm run check` | typecheck + tests + doctor — the gate before anything is "done" |
 | `npm run report` | regenerates the measured figures in this file and the delivery notes from the recorded conversations |
 
 The database is a local SQLite file at `data/rental.db`. Deleting it is
-harmless; `npm run reset-db` recreates it.
+harmless; `npm run reset-db` recreates it, directory and all.
 
 ---
 
 ## Inventory
 
-| SKU | Item | Stock |
-|---|---|---|
-| `CAM-A` | Camera A | 2 |
-| `TRI-B` | Tripod B | 3 |
-| `MIC-C` | Microphone C | 1 |
+| Item | Stock |
+|---|---|
+| Camera A | 2 |
+| Tripod B | 3 |
+| Microphone C | 1 |
+
+The brief fixes these three names and these three stock levels; nothing else
+about the equipment is stated anywhere, because nothing else is known.
 
 One reservation is seeded: **Camera A ×1, 10–12 October 2026 inclusive**. So on
 those three days only one of the two Camera A units is free. A local
@@ -254,7 +258,7 @@ the live figures.
 never transcribed by hand.
 
 <!-- figures:latency -->
-Measured on 2026-09-14 across 10 recorded conversations,
+Measured on 2026-09-14 across 11 recorded conversations,
 silence window 500 ms. All figures in milliseconds.
 
 | Measure | n | min | median | p95 | max |

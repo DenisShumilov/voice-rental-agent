@@ -20,13 +20,23 @@ export type SqlExecutor = {
 
 const DEFAULT_URL = 'file:./data/rental.db'
 
+/**
+ * Where the database actually is. Exported because three callers used to work
+ * this out for themselves, and one of them used `??`, which treats the blank
+ * `DATABASE_URL=` that .env.example ships as a real value — that is the bug
+ * that made `npm run reset-db` fail on a clean clone.
+ */
+export function databaseUrl(): string {
+  return process.env.DATABASE_URL?.trim() || DEFAULT_URL
+}
+
 let client: Client | undefined
 let openedWith: string | undefined
 
 export function getDb(): Client {
   // `??` is not enough: a key left blank in .env is an empty string, not
   // undefined, and libSQL rejects '' as a malformed URL.
-  const url = process.env.DATABASE_URL?.trim() || DEFAULT_URL
+  const url = databaseUrl()
 
   // Reopen if the target moved (tests switch to a scratch database).
   if (client && openedWith !== url) {

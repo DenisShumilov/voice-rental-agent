@@ -1,0 +1,56 @@
+
+ RUN  v5.0.0 C:/Users/shumi/Desktop/Voice equipment booking agent/voice-rental-agent
+
+ ❯ tests/scenarios.test.ts (7 tests | 6 failed) 44ms
+   ❯ required scenarios (7)
+     × TC01 — Normal booking 37ms
+     × TC02 — Corrected dates 1ms
+     × TC03 — Insufficient stock 1ms
+     × TC04 — Interruption mid-answer 1ms
+     × TC05 — Repeated confirmation 1ms
+     × TC06 — Ambiguous dates 1ms
+ ❯ tests/booking.test.ts (12 tests | 12 failed) 169ms
+   ❯ confirmBooking (12)
+     × writes exactly one reservation when the token is valid 40ms
+     × returns the same reservation on a repeated confirmation, writing nothing 29ms
+     × rejects a token minted before a correction 32ms
+     × never stores the superseded dates after a correction 32ms
+     × refuses to confirm a request the stock cannot cover 31ms
+     × refuses to confirm a request that is missing dates 1ms
+     × rejects an unknown draft id 1ms
+     × reports the remaining stock for the booked dates 1ms
+     × refuses a draft that belongs to another conversation 1ms
+     × refuses a token whose start date has passed since it was issued 1ms
+     × lets the database itself reject a second reservation for the same draft 0ms
+     × starts a fresh draft when a new request follows a confirmed booking 0ms
+ ❯ tests/drafts.test.ts (9 tests | 9 failed) 12ms
+   ❯ setRequest (9)
+     × marks a complete, available request as available and issues a token 5ms
+     × leaves a request without dates incomplete and issues no token 1ms
+     × refuses to guess when a phrase matches more than one item 1ms
+     × bumps the version and rotates the token on a correction 1ms
+     × changes only the fields supplied in a correction 1ms
+     × marks a request for more units than exist as unavailable, with no token 1ms
+     × assumes one unit when no quantity is given 0ms
+     × leaves exactly one live draft when two requests arrive at once 0ms
+     × rejects a date range that ends before it starts, with no token 1ms
+ ❯ tests/tools.test.ts (9 tests | 9 failed) 313ms
+   ❯ dispatchTool (9)
+     × refuses a tool that does not exist 32ms
+     × refuses a confirmation with missing arguments 32ms
+     × accepts a version sent as a string, since models are not typed 30ms
+     × asks for dates rather than accepting a date it cannot parse 31ms
+     × refuses a start date that has already passed 31ms
+     × refuses a rental longer than the maximum 30ms
+     × asks which item is meant when the phrase matches none 30ms
+     × refuses a lookup span longer than the maximum rental 62ms
+     × leaves the current request untouched when only looking up availability 32ms
+
+ Test Files  4 failed | 3 passed (7)
+      Tests  36 failed | 24 passed (60)
+   Start at  22:50:48
+   Duration  1.74s (tests 55%, import 33%, transform 10%, worker 2%)
+
+    Isolate  7 workers spawned · ~79ms startup each (spawn + environment, per file)
+             at least ~476ms faster with isolate: false — reuses workers across files instead of one per file
+

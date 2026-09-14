@@ -234,6 +234,9 @@ export async function buildReport() {
     },
     cost: {
       breakdown: calculateCost(usages, voiceMinutes),
+      // The same tokens priced at the tier we did not choose, so the model
+      // decision is a measurement rather than a claim.
+      ifFullTier: calculateCost(usages, voiceMinutes, PRICING.realtimeFull),
       voiceMinutes,
       pricing: PRICING,
       hosting: HOSTING,

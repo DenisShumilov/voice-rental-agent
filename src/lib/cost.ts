@@ -47,13 +47,19 @@ export type CostBreakdown = {
   usdPerMinute: number | null
 }
 
+/**
+ * @param rates which tier to price the same token counts at. Defaults to the
+ * tier we actually run; passing the full tier prices the model choice instead
+ * of asserting it. Transcription is billed per minute either way, so the two
+ * figures stay comparable.
+ */
 export function calculateCost(
   usages: RealtimeUsage[],
   minutes: number,
+  rates: typeof PRICING.realtimeMini | typeof PRICING.realtimeFull = PRICING.realtimeMini,
 ): CostBreakdown | null {
   if (usages.length === 0) return null
 
-  const rates = PRICING.realtimeMini
   const totals = {
     audioInput: 0,
     cachedAudioInput: 0,

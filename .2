@@ -1,0 +1,55 @@
+
+ RUN  v5.0.0 C:/Users/shumi/Desktop/Voice equipment booking agent/voice-rental-agent
+
+ ❯ tests/booking.test.ts (12 tests | 12 failed) 60ms
+   ❯ confirmBooking (12)
+     × writes exactly one reservation when the token is valid 10ms
+     × returns the same reservation on a repeated confirmation, writing nothing 28ms
+     × rejects a token minted before a correction 16ms
+     × never stores the superseded dates after a correction 1ms
+     × refuses to confirm a request the stock cannot cover 1ms
+     × refuses to confirm a request that is missing dates 1ms
+     × rejects an unknown draft id 1ms
+     × reports the remaining stock for the booked dates 1ms
+     × refuses a draft that belongs to another conversation 1ms
+     × refuses a token whose start date has passed since it was issued 1ms
+     × lets the database itself reject a second reservation for the same draft 1ms
+     × starts a fresh draft when a new request follows a confirmed booking 0ms
+ ❯ tests/tools.test.ts (9 tests | 9 failed) 80ms
+   ❯ dispatchTool (9)
+     × refuses a tool that does not exist 30ms
+     × refuses a confirmation with missing arguments 30ms
+     × accepts a version sent as a string, since models are not typed 15ms
+     × asks for dates rather than accepting a date it cannot parse 1ms
+     × refuses a start date that has already passed 1ms
+     × refuses a rental longer than the maximum 0ms
+     × asks which item is meant when the phrase matches none 0ms
+     × refuses a lookup span longer than the maximum rental 1ms
+     × leaves the current request untouched when only looking up availability 1ms
+ ❯ tests/scenarios.test.ts (7 tests | 6 failed) 86ms
+   ❯ required scenarios (7)
+     × TC01 — Normal booking 80ms
+     × TC02 — Corrected dates 1ms
+     × TC03 — Insufficient stock 1ms
+     × TC04 — Interruption mid-answer 1ms
+     × TC05 — Repeated confirmation 1ms
+     × TC06 — Ambiguous dates 1ms
+ ❯ tests/drafts.test.ts (9 tests | 7 failed) 172ms
+   ❯ setRequest (9)
+     × marks a complete, available request as available and issues a token 6ms
+     × bumps the version and rotates the token on a correction 2ms
+     × changes only the fields supplied in a correction 1ms
+     × marks a request for more units than exist as unavailable, with no token 1ms
+     × assumes one unit when no quantity is given 1ms
+     × leaves exactly one live draft when two requests arrive at once 1ms
+     × rejects a date range that ends before it starts, with no token 1ms
+ ❯ tests/availability.test.ts (10 tests | 10 skipped) 30ms
+
+ Test Files  5 failed | 2 passed (7)
+      Tests  34 failed | 16 passed | 10 skipped (60)
+   Start at  22:50:34
+   Duration  1.55s (tests 47%, import 39%, transform 12%, worker 2%)
+
+    Isolate  7 workers spawned · ~76ms startup each (spawn + environment, per file)
+             at least ~455ms faster with isolate: false — reuses workers across files instead of one per file
+
