@@ -1,65 +1,16 @@
 // The browser half of the voice session: microphone in, speech out, tool calls
-// relayed to the server, and the timestamps that make the latency claim honest.
+// relayed to the server.
 //
-// Invariant: this file transports and measures. It never decides. Every tool
-// call goes to /api/tools and the answer it reads aloud is whatever came back.
+// Invariant: this file transports. It never decides — every tool call goes to
+// /api/tools and the answer it reads aloud is whatever came back — and it does
+// not work out what a turn measured either. That lives in TurnTimer, which is
+// free of browser APIs and therefore testable without a microphone.
+
+import { TurnTimer, type LatencySample } from './turn-timer'
+
+export type { LatencySample }
 
 export type VoiceState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking'
-
-/**
- * Four figures, because one would hide where the time goes.
- *
- * Server VAD only reports the turn as ended once it has heard a full silence
- * window, so the event reaches us roughly `vadSilenceMs` AFTER the customer
- * actually stopped talking. The window therefore has to be added back to get
- * the figure the brief asks for — end of the customer's turn to first answer —
- * not subtracted from it.
- */
-export type LatencySample = {
-  turn: number
-  /** Client learns the turn ended → server starts sending audio. */
-  detectedToAudioMs: number
-  /** Client learns the turn ended → first frame loud enough to hear. */
-  detectedToAudibleMs: number | null
-  /** The brief's measure: customer stops speaking → any audio begins. */
-  turnEndToAudioMs: number
-  /** The brief's measure, to the first genuinely audible frame. */
-  turnEndToAudibleMs: number | null
-  /**
-   * Customer stops speaking → the audio that carries the actual answer begins.
-   *
-   * On a turn that needs a database lookup, the agent now says something like
-   * "let me check" first, so `turnEndToAudioMs` becomes the time to that
-   * acknowledgement. Reporting only that number would be gaming the metric: the
-   * silence is gone, but the answer is not one millisecond earlier. This is the
-   * figure that did not improve, kept so both can be reported side by side.
-   */
-  turnEndToAnswerMs: number | null
-  /** How many database lookups this turn needed. Zero means answer == audio. */
-  toolCalls: number
-  /** The silence window added back, recorded so the figures stay auditable. */
-  vadSilenceMs: number
-  /**
-   * False when this turn interrupted the agent, or was itself interrupted.
-   * The clock then no longer measures "how long did an answer take": the
-   * response may have been already in flight, or cancelled part-way. Only
-   * clean turns belong in a headline figure.
-   */
-  clean: boolean
-}
-
-type PendingTurn = {
-  turn: number
-  startedAt: number
-  bargedIn: boolean
-  assistantWasSpeaking: boolean
-  rawMs: number | null
-  audibleMs: number | null
-  answerMs: number | null
-  toolCalls: number
-  awaitingAnswer: boolean
-  finalizeTimer: ReturnType<typeof setTimeout> | null
-}
 
 export type TranscriptEntry = {
   role: 'user' | 'assistant'
@@ -81,11 +32,6 @@ export type VoiceCallbacks = {
 const AUDIBLE_RMS_THRESHOLD = 0.01
 /** Consecutive frames required, so one codec click does not count as speech. */
 const AUDIBLE_CONFIRM_FRAMES = 2
-/**
- * How long to keep a turn open waiting for the answer that follows a database
- * lookup, before giving up and reporting the turn without one.
- */
-const ANSWER_TIMEOUT_MS = 8000
 /** Closes the last turn of a conversation, which no following turn will close. */
 const TURN_BACKSTOP_MS = 20000
 
@@ -138,22 +84,13 @@ export class RealtimeVoiceClient {
   private onsetFrame = 0
   private onsetTimer: number | null = null
 
-  private vadSilenceMs = 0
-  private turn = 0
-  private pending: PendingTurn | null = null
-  private assistantSpeaking = false
+  private timer: TurnTimer | null = null
+  private backstop: ReturnType<typeof setTimeout> | null = null
+
   /**
-   * Set when the customer talks over the agent, and consumed by the next turn.
-   * It cannot be read off `assistantSpeaking` at that point: handling the
-   * barge-in has already cleared that flag, which is why the first version of
-   * this marked every interrupting turn as clean.
-   */
-  private followsInterruption = false
-  /**
-   * The server allows one response at a time. Turn detection creates responses
-   * on its own when the customer stops speaking, so a reply we ask for after a
-   * tool result can collide with one the server already started — which the API
-   * refuses outright. Asking is therefore queued rather than fired blindly.
+   * The server allows one response at a time and creates them on its own when
+   * turn detection fires, so a reply asked for after a tool result can collide
+   * with one already running — which the API refuses. Asking is queued.
    */
   private responseActive = false
   private responseQueued = false
@@ -168,7 +105,11 @@ export class RealtimeVoiceClient {
 
     try {
       const session = await this.mintToken()
-      this.vadSilenceMs = session.vadSilenceMs
+
+      this.timer = new TurnTimer(session.vadSilenceMs, (sample) => {
+        this.callbacks.onLatency?.(sample)
+        void this.record('latency', sample)
+      })
 
       this.microphone = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
@@ -222,10 +163,12 @@ export class RealtimeVoiceClient {
   disconnect(): void {
     // Report the turn in progress before tearing anything down, otherwise the
     // last exchange of every conversation is silently lost.
-    this.finalisePending()
+    this.timer?.flush()
 
     if (this.onsetTimer !== null) cancelAnimationFrame(this.onsetTimer)
+    if (this.backstop !== null) clearTimeout(this.backstop)
     this.onsetTimer = null
+    this.backstop = null
 
     this.channel?.close()
     this.connection?.close()
@@ -237,15 +180,13 @@ export class RealtimeVoiceClient {
     this.microphone = null
     this.analyser = null
     this.audioContext = null
+    this.timer = null
 
     if (this.audioElement) {
       this.audioElement.srcObject = null
       this.audioElement = null
     }
 
-    if (this.pending?.finalizeTimer) clearTimeout(this.pending.finalizeTimer)
-    this.pending = null
-    this.assistantSpeaking = false
     this.responseActive = false
     this.responseQueued = false
     this.setState('idle')
@@ -263,49 +204,28 @@ export class RealtimeVoiceClient {
 
     switch (type) {
       case 'input_audio_buffer.speech_started':
-        // The customer started talking. If we were mid-answer, that is a
-        // barge-in: the server cancels its response, and we silence whatever is
-        // already buffered on this side so nothing talks over them.
-        if (this.assistantSpeaking) this.handleBargeIn()
+        if (this.timer?.speechStarted()) this.handleBargeIn()
         this.setState('listening')
         return
 
       case 'input_audio_buffer.speech_stopped':
-        // The measurement starts here, on arrival rather than on the server's
-        // own audio clock, because that is the moment this client could first
-        // have known the turn ended.
-        this.finalisePending()
-        this.turn += 1
-        this.pending = {
-          turn: this.turn,
-          startedAt: performance.now(),
-          bargedIn: false,
-          assistantWasSpeaking: this.followsInterruption || this.assistantSpeaking,
-          rawMs: null,
-          audibleMs: null,
-          answerMs: null,
-          toolCalls: 0,
-          awaitingAnswer: false,
-          // A backstop only. Normally the sample is closed by the next turn
-          // starting; this exists so the last turn of a conversation is still
-          // reported.
-          finalizeTimer: setTimeout(() => this.finalisePending(), TURN_BACKSTOP_MS),
-        }
-        this.followsInterruption = false
+        // Timed from arrival rather than the server's own audio clock: this is
+        // the moment this client could first have known the turn ended.
+        this.timer?.speechStopped(performance.now())
         this.onsetFrame = 0
+        this.armBackstop()
         this.setState('thinking')
         return
 
       case 'output_audio_buffer.started':
-        this.assistantSpeaking = true
         if (this.audioElement) this.audioElement.muted = false
+        this.timer?.audioStarted(performance.now())
         this.setState('speaking')
-        this.markFirstAudio(performance.now())
         return
 
       case 'output_audio_buffer.stopped':
       case 'output_audio_buffer.cleared':
-        this.assistantSpeaking = false
+        this.timer?.audioStopped()
         this.setState('listening')
         return
 
@@ -343,15 +263,10 @@ export class RealtimeVoiceClient {
     // The server cancels its own response, but audio already in the jitter
     // buffer would still play out. Muting stops it in the same tick.
     if (this.audioElement) this.audioElement.muted = true
-    this.assistantSpeaking = false
-    this.followsInterruption = true
-    // Any reply still waiting to be spoken answers the request the customer
-    // just changed. Speaking it now would be answering a superseded question;
-    // their new turn will produce its own reply.
+    // Any reply still waiting answers the request the customer just changed.
     this.responseQueued = false
-    if (this.pending) this.pending.bargedIn = true
     this.callbacks.onBargeIn?.()
-    void this.record('barge_in', { at: Date.now(), turn: this.turn })
+    void this.record('barge_in', { at: Date.now(), turn: this.timer?.currentTurn ?? 0 })
   }
 
   private async handleResponseDone(event: Record<string, unknown>): Promise<void> {
@@ -367,15 +282,8 @@ export class RealtimeVoiceClient {
     }
 
     const calls = (response?.output ?? []).filter((item) => item.type === 'function_call')
-
-    // A response with no tool calls is NOT reliably the end of the turn: the
-    // agent often says "let me check" as a response of its own, and the tool
-    // call arrives in the next one. Closing here was the second version of this
-    // bug — it recorded those turns as needing no lookup at all. The turn is
-    // closed when the next one begins instead.
+    this.timer?.responseDone(calls.length)
     if (calls.length === 0) return
-
-    if (this.pending) this.pending.toolCalls += calls.length
 
     for (const call of calls) {
       const name = String(call.name ?? '')
@@ -400,16 +308,8 @@ export class RealtimeVoiceClient {
       })
     }
 
-    // The tool results are in the conversation; ask for the spoken reply. From
-    // here the next audio is the answer itself, not the acknowledgement.
-    if (this.pending) {
-      this.pending.awaitingAnswer = true
-      if (this.pending.finalizeTimer !== null) clearTimeout(this.pending.finalizeTimer)
-      this.pending.finalizeTimer = setTimeout(
-        () => this.finalisePending(),
-        ANSWER_TIMEOUT_MS,
-      )
-    }
+    // From here the next audio is the answer itself, not the acknowledgement.
+    this.timer?.answerRequested()
     this.requestResponse()
   }
 
@@ -452,70 +352,17 @@ export class RealtimeVoiceClient {
     }
   }
 
-  /**
-   * Audio started for this turn. The sample is held open rather than closed
-   * here: the audible check resolves later by definition, and on a turn with a
-   * database lookup the first audio is only the acknowledgement — the answer
-   * itself is still to come.
-   */
-  private markFirstAudio(at: number): void {
-    const pending = this.pending
-    if (!pending) return
-
-    if (pending.rawMs === null) {
-      pending.rawMs = Math.round(at - pending.startedAt)
-    }
-
-    if (pending.awaitingAnswer && pending.answerMs === null) {
-      pending.answerMs = Math.round(at - pending.startedAt)
-    }
-
-    // Deliberately no timer here. Closing the sample on a timer after the first
-    // audio was the original bug: on a turn with a lookup the acknowledgement
-    // takes about a second to speak, so response.done — which is what reveals
-    // that a lookup happened at all — always arrived too late to be counted.
-    // The sample is now closed by response.done instead, which always comes.
-  }
-
-  private finalisePending(): void {
-    const pending = this.pending
-    if (!pending) return
-
-    if (pending.finalizeTimer !== null) clearTimeout(pending.finalizeTimer)
-    this.pending = null
-
-    // No audio ever came back for that turn — there is nothing to time.
-    if (pending.rawMs === null) return
-
-    const sample: LatencySample = {
-      turn: pending.turn,
-      detectedToAudioMs: pending.rawMs,
-      detectedToAudibleMs: pending.audibleMs,
-      turnEndToAudioMs: pending.rawMs + this.vadSilenceMs,
-      turnEndToAudibleMs:
-        pending.audibleMs === null ? null : pending.audibleMs + this.vadSilenceMs,
-      // With no lookup there is no acknowledgement, so the first audio already
-      // is the answer.
-      turnEndToAnswerMs:
-        pending.toolCalls === 0
-          ? pending.rawMs + this.vadSilenceMs
-          : pending.answerMs === null
-            ? null
-            : pending.answerMs + this.vadSilenceMs,
-      toolCalls: pending.toolCalls,
-      vadSilenceMs: this.vadSilenceMs,
-      clean: !pending.bargedIn && !pending.assistantWasSpeaking,
-    }
-
-    this.callbacks.onLatency?.(sample)
-    void this.record('latency', sample)
+  /** A turn normally closes when the next begins; this closes the last one. */
+  private armBackstop(): void {
+    if (this.backstop !== null) clearTimeout(this.backstop)
+    this.backstop = setTimeout(() => this.timer?.flush(), TURN_BACKSTOP_MS)
   }
 
   /**
    * Independent check on the data-channel timestamp: watches the incoming audio
-   * track and notes the first frame that is actually loud enough to hear, plus
-   * the output device's own delay. It answers "when did the customer hear
-   * something", which is a later moment than "when did the server start sending".
+   * track and notes the first frame actually loud enough to hear, plus the
+   * output device's own delay. It answers "when did the customer hear
+   * something", a later moment than "when did the server start sending".
    */
   private watchForAudioOnset(stream: MediaStream): void {
     const context = new AudioContext()
@@ -531,16 +378,7 @@ export class RealtimeVoiceClient {
 
     const tick = () => {
       this.onsetTimer = requestAnimationFrame(tick)
-
-      const pending = this.pending
-      if (!pending || pending.audibleMs !== null || !this.analyser) return
-
-      // Not before the server says it has started sending. The detector runs
-      // continuously, so without this it catches the tail of the previous
-      // answer still playing out after a barge-in and reports a turn as audible
-      // before any of its audio existed — which produced impossible figures
-      // lower than the data-channel timestamp.
-      if (pending.rawMs === null) return
+      if (!this.analyser || !this.timer) return
 
       this.analyser.getFloatTimeDomainData(samples)
       let sumOfSquares = 0
@@ -556,14 +394,10 @@ export class RealtimeVoiceClient {
       if (this.onsetFrame < AUDIBLE_CONFIRM_FRAMES) return
 
       // The device's own output delay sits between a frame reaching the graph
-      // and a person hearing it, so it belongs in the figure.
+      // and a person hearing it, so it belongs in the figure. TurnTimer ignores
+      // readings that arrive before the audio did, and repeats within a turn.
       const outputLatencyMs = (context.outputLatency || 0) * 1000
-      pending.audibleMs = Math.round(
-        performance.now() + outputLatencyMs - pending.startedAt,
-      )
-
-      // The later of the two measurements has landed; no reason to keep waiting.
-      if (pending.rawMs !== null) this.finalisePending()
+      this.timer.audible(performance.now() + outputLatencyMs)
     }
 
     this.onsetTimer = requestAnimationFrame(tick)
