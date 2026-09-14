@@ -185,23 +185,27 @@ function ProductCard({ item, hasDates }: { item: ShelfItem; hasDates: boolean })
   )
 }
 
-const BAR_COUNT = 28
-
 /**
- * A meter driven by the actual audio, not an animation pretending to be one:
- * the bars follow the microphone while the customer talks and the incoming
- * stream while the agent answers. It writes heights straight to the DOM on each
- * frame, because re-rendering React sixty times a second to move 28 bars would
- * make the rest of the page stutter.
+ * One soft shape rather than a row of bars. Every voice product converges on
+ * this — a level meter reads as equipment, a single breathing form reads as
+ * something listening — and the customer needs "is it hearing me?" answered at
+ * a glance, not a signal reading.
+ *
+ * It is still driven by the real audio: the microphone while the customer
+ * talks, the incoming stream while the agent answers. Thinking has no audio, so
+ * it gets a slow pulse of its own rather than silence animated as if it were
+ * sound. Written straight to the DOM each frame; putting this through React
+ * would re-render the panel sixty times a second.
  */
-function VoiceMeter({
+function VoiceOrb({
   levelRef,
   state,
 }: {
   levelRef: ReturnType<typeof useVoiceSession>['levelRef']
   state: ReturnType<typeof useVoiceSession>['state']
 }) {
-  const bars = useRef<Array<HTMLSpanElement | null>>([])
+  const halo = useRef<HTMLSpanElement>(null)
+  const core = useRef<HTMLSpanElement>(null)
   const stateRef = useRef(state)
   stateRef.current = state
 
@@ -211,9 +215,11 @@ function VoiceMeter({
 
     const tick = () => {
       frame = requestAnimationFrame(tick)
-      phase += 0.09
+      phase += 0.055
 
       const current = stateRef.current
+      const breathing = 0.5 + 0.5 * Math.sin(phase)
+
       const level =
         current === 'speaking'
           ? levelRef.current.output
@@ -221,42 +227,48 @@ function VoiceMeter({
             ? levelRef.current.input
             : 0
 
-      bars.current.forEach((bar, index) => {
-        if (!bar) return
-        const offset = Math.sin(phase + index * 0.55)
-        // Thinking has no audio to show, so it gets an explicit travelling
-        // pulse — a waiting indicator, never dressed up as sound.
-        const height =
-          current === 'thinking'
-            ? 14 + 10 * Math.max(0, Math.sin(phase * 1.6 - index * 0.4))
-            : 4 + Math.min(1, level * 9) * 34 * (0.55 + 0.45 * offset * offset)
-        bar.style.height = `${Math.max(3, height)}px`
-      })
+      const energy =
+        current === 'thinking'
+          ? 0.28 + 0.22 * breathing
+          : current === 'idle' || current === 'connecting'
+            ? 0.06 * breathing
+            : Math.min(1, level * 8)
+
+      if (core.current) {
+        core.current.style.transform = `scale(${1 + energy * 0.22})`
+      }
+      if (halo.current) {
+        halo.current.style.transform = `scale(${0.9 + energy * 0.75})`
+        halo.current.style.opacity = String(0.18 + energy * 0.5)
+      }
     }
 
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [levelRef])
 
-  const tone =
-    state === 'idle' || state === 'connecting'
-      ? 'bg-[var(--text-muted)]/25'
-      : state === 'thinking'
-        ? 'bg-[var(--text-muted)]/50'
-        : 'bg-accent'
+  // Warm even at rest: a grey orb reads as disabled, and this is the thing the
+  // customer is meant to want to talk to.
+  const live = state !== 'idle' && state !== 'connecting'
+  const colour = live
+    ? 'var(--accent)'
+    : 'color-mix(in srgb, var(--accent) 38%, var(--surface-2))'
 
   return (
-    <div className="flex h-12 items-center justify-center gap-[3px]" aria-hidden="true">
-      {Array.from({ length: BAR_COUNT }, (_, index) => (
-        <span
-          key={index}
-          ref={(node) => {
-            bars.current[index] = node
-          }}
-          className={`w-[3px] rounded-full transition-colors ${tone}`}
-          style={{ height: '3px' }}
-        />
-      ))}
+    <div className="relative flex h-28 items-center justify-center" aria-hidden="true">
+      <span
+        ref={halo}
+        className="absolute h-20 w-20 rounded-full blur-2xl will-change-transform"
+        style={{ background: colour, opacity: 0.2 }}
+      />
+      <span
+        ref={core}
+        className="relative h-[68px] w-[68px] rounded-full transition-colors duration-500 will-change-transform"
+        style={{
+          background: `radial-gradient(circle at 34% 28%, color-mix(in srgb, ${colour} 40%, white), ${colour} 70%, color-mix(in srgb, ${colour} 75%, black))`,
+          boxShadow: `0 10px 30px -10px ${colour}`,
+        }}
+      />
     </div>
   )
 }
@@ -297,25 +309,17 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
 
   return (
     <div className="flex max-h-[calc(100vh-6rem)] flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface">
-      <div className="flex items-center gap-2.5 border-b border-border px-5 py-3.5">
-        <span
-          className={`inline-block h-2.5 w-2.5 rounded-full ${
-            state === 'idle' ? 'bg-[var(--text-muted)]' : 'status-dot-live bg-accent'
-          }`}
-        />
-        <span className="text-sm font-medium">{VOICE_STATE_COPY[state]}</span>
+      <div className="relative border-b border-border px-5 pt-4 pb-4">
         {lastLatency && (
           <span
-            className="ml-auto font-mono text-xs text-text-muted"
-            title="Time from the end of your turn to the agent's answer"
+            className="absolute top-4 right-5 font-mono text-xs text-text-muted"
+            title="From the end of your turn to the agent's answer"
           >
             {lastLatency.turnEndToAnswerMs ?? lastLatency.turnEndToAudioMs} ms
           </span>
         )}
-      </div>
-
-      <div className="border-b border-border px-5 py-2">
-        <VoiceMeter levelRef={session.levelRef} state={state} />
+        <VoiceOrb levelRef={session.levelRef} state={state} />
+        <p className="mt-1 text-center text-sm font-medium">{VOICE_STATE_COPY[state]}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
