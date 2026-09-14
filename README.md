@@ -24,8 +24,13 @@ Open:          /         the storefront
 
 | Surface | URL |
 |---|---|
-| Storefront | _add after deployment_ |
-| Reviewer view | _the same host, at `/review`_ |
+| Storefront | https://voice-rental-agent.vercel.app |
+| Reviewer view | https://voice-rental-agent.vercel.app/review |
+
+Press **Run all checks** on the reviewer view to re-run the six required
+scenarios against a scratch in-memory database. It reports expected vs actual
+per check and the database before and after each one, and it cannot disturb the
+bookings made on the storefront.
 
 A microphone is required. **Use headphones** — on open speakers the agent hears
 itself and treats it as the customer interrupting.
