@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   RealtimeVoiceClient,
+  type AudioLevels,
   type LatencySample,
   type TranscriptEntry,
   type VoiceState,
@@ -44,6 +45,12 @@ export function useVoiceSession() {
   const [error, setError] = useState<string | null>(null)
 
   const clientRef = useRef<RealtimeVoiceClient | null>(null)
+  /**
+   * Loudness lives in a ref, not in state: it changes every animation frame and
+   * re-rendering the panel sixty times a second to move a few bars would make
+   * the page stutter. The meter reads this directly.
+   */
+  const levelRef = useRef<AudioLevels>({ input: 0, output: 0 })
 
   const start = useCallback(async () => {
     if (clientRef.current) return
@@ -56,6 +63,9 @@ export function useVoiceSession() {
         // Without this the client object survives a failed connection and
         // start() sees it as already running, so the button does nothing.
         clientRef.current = null
+      },
+      onLevel: (levels) => {
+        levelRef.current = levels
       },
       onBargeIn: () => setInterruptions((count) => count + 1),
       onLatency: (sample) => setLatency((samples) => [...samples, sample]),
@@ -117,6 +127,7 @@ export function useVoiceSession() {
   return {
     sessionId,
     state,
+    levelRef,
     transcript,
     latency,
     request,

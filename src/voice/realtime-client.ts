@@ -18,8 +18,15 @@ export type TranscriptEntry = {
   at: number
 }
 
+/** Loudness right now, 0 to roughly 1, from the two live audio streams. */
+export type AudioLevels = {
+  input: number
+  output: number
+}
+
 export type VoiceCallbacks = {
   onState?: (state: VoiceState) => void
+  onLevel?: (levels: AudioLevels) => void
   onTranscript?: (entry: TranscriptEntry) => void
   onToolResult?: (result: { tool: string; status: string; facts: Record<string, unknown> }) => void
   onLatency?: (sample: LatencySample) => void
@@ -36,6 +43,17 @@ const AUDIBLE_CONFIRM_FRAMES = 2
 const TURN_BACKSTOP_MS = 20000
 
 const SDP_URL = 'https://api.openai.com/v1/realtime/calls'
+
+function rootMeanSquare(samples: Float32Array): number {
+  let sumOfSquares = 0
+  for (const value of samples) sumOfSquares += value * value
+  return Math.sqrt(sumOfSquares / samples.length)
+}
+
+/** Rises quickly, falls slowly — a meter that twitches reads as broken. */
+function smooth(previous: number, next: number): number {
+  return next > previous ? previous + (next - previous) * 0.5 : previous * 0.82
+}
 
 /**
  * Turns the provider's refusal into something a person can act on. A bare
@@ -81,8 +99,11 @@ export class RealtimeVoiceClient {
 
   private audioContext: AudioContext | null = null
   private analyser: AnalyserNode | null = null
+  private inputAnalyser: AnalyserNode | null = null
   private onsetFrame = 0
   private onsetTimer: number | null = null
+  private smoothedInput = 0
+  private smoothedOutput = 0
 
   private timer: TurnTimer | null = null
   private backstop: ReturnType<typeof setTimeout> | null = null
@@ -134,6 +155,7 @@ export class RealtimeVoiceClient {
       }
 
       connection.addTrack(this.microphone.getAudioTracks()[0], this.microphone)
+      this.watchMicrophoneLevel(this.microphone)
 
       const channel = connection.createDataChannel('oai-events')
       this.channel = channel
@@ -187,8 +209,12 @@ export class RealtimeVoiceClient {
     this.connection = null
     this.microphone = null
     this.analyser = null
+    this.inputAnalyser = null
     this.audioContext = null
     this.timer = null
+    this.smoothedInput = 0
+    this.smoothedOutput = 0
+    this.callbacks.onLevel?.({ input: 0, output: 0 })
 
     if (this.audioElement) {
       this.audioElement.srcObject = null
@@ -372,9 +398,21 @@ export class RealtimeVoiceClient {
    * output device's own delay. It answers "when did the customer hear
    * something", a later moment than "when did the server start sending".
    */
+  private context(): AudioContext {
+    if (!this.audioContext) this.audioContext = new AudioContext()
+    return this.audioContext
+  }
+
+  /** Feeds the on-screen meter while the customer is talking. */
+  private watchMicrophoneLevel(stream: MediaStream): void {
+    const analyser = this.context().createAnalyser()
+    analyser.fftSize = 1024
+    this.context().createMediaStreamSource(stream).connect(analyser)
+    this.inputAnalyser = analyser
+  }
+
   private watchForAudioOnset(stream: MediaStream): void {
-    const context = new AudioContext()
-    this.audioContext = context
+    const context = this.context()
 
     const source = context.createMediaStreamSource(stream)
     const analyser = context.createAnalyser()
@@ -382,18 +420,26 @@ export class RealtimeVoiceClient {
     source.connect(analyser)
     this.analyser = analyser
 
-    const samples = new Float32Array(analyser.fftSize)
+    const outputSamples = new Float32Array(analyser.fftSize)
+    const inputSamples = new Float32Array(1024)
 
     const tick = () => {
       this.onsetTimer = requestAnimationFrame(tick)
-      if (!this.analyser || !this.timer) return
+      if (!this.analyser) return
 
-      this.analyser.getFloatTimeDomainData(samples)
-      let sumOfSquares = 0
-      for (const value of samples) sumOfSquares += value * value
-      const rms = Math.sqrt(sumOfSquares / samples.length)
+      this.analyser.getFloatTimeDomainData(outputSamples)
+      const outputRms = rootMeanSquare(outputSamples)
 
-      if (rms < AUDIBLE_RMS_THRESHOLD) {
+      if (this.inputAnalyser) {
+        this.inputAnalyser.getFloatTimeDomainData(inputSamples)
+        this.smoothedInput = smooth(this.smoothedInput, rootMeanSquare(inputSamples))
+      }
+      this.smoothedOutput = smooth(this.smoothedOutput, outputRms)
+      this.callbacks.onLevel?.({ input: this.smoothedInput, output: this.smoothedOutput })
+
+      if (!this.timer) return
+
+      if (outputRms < AUDIBLE_RMS_THRESHOLD) {
         this.onsetFrame = 0
         return
       }

@@ -185,6 +185,99 @@ function ProductCard({ item, hasDates }: { item: ShelfItem; hasDates: boolean })
   )
 }
 
+const BAR_COUNT = 28
+
+/**
+ * A meter driven by the actual audio, not an animation pretending to be one:
+ * the bars follow the microphone while the customer talks and the incoming
+ * stream while the agent answers. It writes heights straight to the DOM on each
+ * frame, because re-rendering React sixty times a second to move 28 bars would
+ * make the rest of the page stutter.
+ */
+function VoiceMeter({
+  levelRef,
+  state,
+}: {
+  levelRef: ReturnType<typeof useVoiceSession>['levelRef']
+  state: ReturnType<typeof useVoiceSession>['state']
+}) {
+  const bars = useRef<Array<HTMLSpanElement | null>>([])
+  const stateRef = useRef(state)
+  stateRef.current = state
+
+  useEffect(() => {
+    let frame = 0
+    let phase = 0
+
+    const tick = () => {
+      frame = requestAnimationFrame(tick)
+      phase += 0.09
+
+      const current = stateRef.current
+      const level =
+        current === 'speaking'
+          ? levelRef.current.output
+          : current === 'listening'
+            ? levelRef.current.input
+            : 0
+
+      bars.current.forEach((bar, index) => {
+        if (!bar) return
+        const offset = Math.sin(phase + index * 0.55)
+        // Thinking has no audio to show, so it gets an explicit travelling
+        // pulse — a waiting indicator, never dressed up as sound.
+        const height =
+          current === 'thinking'
+            ? 14 + 10 * Math.max(0, Math.sin(phase * 1.6 - index * 0.4))
+            : 4 + Math.min(1, level * 9) * 34 * (0.55 + 0.45 * offset * offset)
+        bar.style.height = `${Math.max(3, height)}px`
+      })
+    }
+
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [levelRef])
+
+  const tone =
+    state === 'idle' || state === 'connecting'
+      ? 'bg-[var(--text-muted)]/25'
+      : state === 'thinking'
+        ? 'bg-[var(--text-muted)]/50'
+        : 'bg-accent'
+
+  return (
+    <div className="flex h-12 items-center justify-center gap-[3px]" aria-hidden="true">
+      {Array.from({ length: BAR_COUNT }, (_, index) => (
+        <span
+          key={index}
+          ref={(node) => {
+            bars.current[index] = node
+          }}
+          className={`w-[3px] rounded-full transition-colors ${tone}`}
+          style={{ height: '3px' }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function Bubble({ entry }: { entry: { role: 'user' | 'assistant'; text: string } }) {
+  const fromCustomer = entry.role === 'user'
+  return (
+    <div className={`flex ${fromCustomer ? 'justify-end' : 'justify-start'}`}>
+      <p
+        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+          fromCustomer
+            ? 'rounded-br-sm bg-accent text-accent-fg'
+            : 'rounded-bl-sm bg-surface-2 text-text'
+        }`}
+      >
+        {entry.text}
+      </p>
+    </div>
+  )
+}
+
 function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }) {
   const { state, request, bookings, transcript, latency } = session
   // A request in progress takes the card; a booking made earlier in the same
@@ -203,8 +296,8 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
   }, [transcript.length])
 
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-surface p-5">
-      <div className="flex items-center gap-2.5 border-b border-border pb-3">
+    <div className="flex max-h-[calc(100vh-6rem)] flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface">
+      <div className="flex items-center gap-2.5 border-b border-border px-5 py-3.5">
         <span
           className={`inline-block h-2.5 w-2.5 rounded-full ${
             state === 'idle' ? 'bg-[var(--text-muted)]' : 'status-dot-live bg-accent'
@@ -212,14 +305,23 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
         />
         <span className="text-sm font-medium">{VOICE_STATE_COPY[state]}</span>
         {lastLatency && (
-          <span className="ml-auto font-mono text-xs text-text-muted">
+          <span
+            className="ml-auto font-mono text-xs text-text-muted"
+            title="Time from the end of your turn to the agent's answer"
+          >
             {lastLatency.turnEndToAnswerMs ?? lastLatency.turnEndToAudioMs} ms
           </span>
         )}
       </div>
 
+      <div className="border-b border-border px-5 py-2">
+        <VoiceMeter levelRef={session.levelRef} state={state} />
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-4">
+
       {booking ? (
-        <div className="mt-4 rounded-lg border border-[var(--ok)] bg-surface-2 p-4">
+        <div className="rounded-lg border border-[var(--ok)] bg-surface-2 p-4">
           <p className="text-xs font-medium tracking-wide text-ok uppercase">Booking confirmed</p>
           <p className="mt-2 text-lg font-medium">
             {booking.item} ×{booking.quantity}
@@ -237,7 +339,7 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
           </p>
         </div>
       ) : request ? (
-        <div className="mt-4 rounded-lg border border-border bg-surface-2 p-4">
+        <div className="rounded-lg border border-border bg-surface-2 p-4">
           <p className="text-xs font-medium tracking-wide text-text-muted uppercase">
             Current request
           </p>
@@ -268,7 +370,7 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
           </p>
         </div>
       ) : (
-        <p className="mt-4 text-sm text-text-muted">
+        <p className="text-sm text-text-muted">
           Say what you need and when. For example: &ldquo;{exampleUtterance(CATALOG[0].name)}&rdquo;
         </p>
       )}
@@ -286,19 +388,33 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
         </ul>
       )}
 
-      {transcript.length > 0 && (
-        <div className="mt-5 max-h-64 space-y-2.5 overflow-y-auto border-t border-border pt-4">
-          {transcript.map((entry, index) => (
-            <p key={index} className="text-sm">
-              <span className="text-text-muted">
-                {entry.role === 'user' ? 'You' : 'Agent'}:{' '}
-              </span>
-              {entry.text}
-            </p>
-          ))}
-          <div ref={transcriptEnd} />
-        </div>
-      )}
+        {transcript.length > 0 && (
+          <div className="mt-4 space-y-2 border-t border-border pt-4">
+            {transcript.map((entry, index) => (
+              <Bubble key={index} entry={entry} />
+            ))}
+            <div ref={transcriptEnd} />
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-border px-5 py-3.5">
+        {session.isLive ? (
+          <button
+            type="button"
+            onClick={session.stop}
+            className="w-full rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-text-muted transition hover:bg-surface-2"
+          >
+            {BRAND.stopCta}
+          </button>
+        ) : (
+          // No second microphone button: the hero already owns that action, and
+          // two identical buttons side by side read as a mistake.
+          <p className="text-center text-xs text-text-muted">
+            Press <span className="font-medium text-text">{BRAND.startCta}</span> to begin
+          </p>
+        )}
+      </div>
     </div>
   )
 }

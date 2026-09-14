@@ -423,28 +423,41 @@ function Headline({ summary }: { summary: Summary }) {
 
 function ScenarioBlock({ result }: { result: ScenarioResult }) {
   return (
-    <article className="mt-4 rounded-[var(--radius)] border border-border bg-surface p-4">
-      <div className="flex items-baseline gap-3">
-        <span className="font-mono text-sm">{result.id}</span>
-        <h3 className="font-medium">{result.title}</h3>
-        <span className="font-mono text-xs text-text-muted">{result.requirements.join(' ')}</span>
-        <span className={`ml-auto text-sm font-medium ${result.passed ? 'text-ok' : 'text-warn'}`}>
-          {result.passed ? 'PASS' : 'FAIL'}
-        </span>
-      </div>
+    <article
+      className={`mt-4 overflow-hidden rounded-[var(--radius)] border border-border bg-surface border-l-[3px] ${
+        result.passed ? 'border-l-[var(--ok)]' : 'border-l-[var(--warn)]'
+      }`}
+    >
+      <div className="p-4">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="font-mono text-sm text-text-muted">{result.id}</span>
+          <h3 className="font-medium">{result.title}</h3>
+          <span className="ml-auto">
+            <Verdict passed={result.passed} />
+          </span>
+        </div>
 
-      <p className="mt-1 text-sm text-text-muted">{result.given}</p>
+        <p className="mt-1.5 text-sm text-text-muted">{result.given}</p>
 
-      <p className="mt-3 text-xs font-medium tracking-wide text-text-muted uppercase">Said</p>
-      <ul className="mt-1 space-y-0.5 text-sm">
-        {result.steps
-          .filter((step) => step.spoken)
-          .map((step, index) => (
-            <li key={index}>&ldquo;{step.spoken}&rdquo;</li>
-          ))}
-      </ul>
+        <p className="mt-3.5 text-xs font-medium tracking-wide text-text-muted uppercase">
+          What was said
+        </p>
+        <ul className="mt-1.5 space-y-1.5">
+          {result.steps
+            .filter((step) => step.spoken)
+            .map((step, index) => (
+              <li
+                key={index}
+                className="max-w-[90%] rounded-2xl rounded-bl-sm bg-surface-2 px-3 py-1.5 text-sm"
+              >
+                {step.spoken}
+              </li>
+            ))}
+        </ul>
 
-      <p className="mt-3 text-xs font-medium tracking-wide text-text-muted uppercase">Checks</p>
+        <p className="mt-3.5 text-xs font-medium tracking-wide text-text-muted uppercase">
+          Checks
+        </p>
       <Table
         head={['Check', 'Expected', 'Actual', '']}
         rows={result.checks.map((check) => [
@@ -457,26 +470,64 @@ function ScenarioBlock({ result }: { result: ScenarioResult }) {
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <SnapshotBlock title="Database before" snapshot={result.before} />
-        <SnapshotBlock title="Database after" snapshot={result.after} />
+          <SnapshotBlock
+            title="Database after"
+            snapshot={result.after}
+            addedSince={result.before}
+          />
+        </div>
       </div>
     </article>
   )
 }
 
-function SnapshotBlock({ title, snapshot }: { title: string; snapshot: Snapshot }) {
+function rowKey(row: Snapshot['reservations'][number]): string {
+  return `${row.itemId}|${row.quantity}|${row.startDate}|${row.endDate}`
+}
+
+function SnapshotBlock({
+  title,
+  snapshot,
+  addedSince,
+}: {
+  title: string
+  snapshot: Snapshot
+  /** Rows absent from this set are marked as written by the scenario. */
+  addedSince?: Snapshot
+}) {
+  const before = new Set((addedSince?.reservations ?? []).map(rowKey))
+
   return (
     <div className="rounded-lg border border-border bg-surface-2 p-3">
       <p className="text-xs font-medium tracking-wide text-text-muted uppercase">
-        {title} ({snapshot.total})
+        {title} · {snapshot.total} {snapshot.total === 1 ? 'row' : 'rows'}
       </p>
-      <ul className="mt-1.5 space-y-0.5 font-mono text-xs">
-        {snapshot.reservations.map((row, index) => (
-          <li key={index}>
-            {row.itemId} ×{row.quantity} {row.startDate}→{row.endDate} ({row.source})
-          </li>
-        ))}
+      <ul className="mt-2 space-y-1 font-mono text-xs">
+        {snapshot.reservations.map((row, index) => {
+          const isNew = addedSince !== undefined && !before.has(rowKey(row))
+          return (
+            <li key={index} className={isNew ? 'font-medium text-ok' : 'text-text-muted'}>
+              {isNew ? '+ ' : '  '}
+              {row.itemId} ×{row.quantity} {row.startDate}→{row.endDate}
+              {isNew && <span className="ml-1.5 font-sans not-italic">written by this check</span>}
+            </li>
+          )
+        })}
+        {snapshot.reservations.length === 0 && <li className="text-text-muted">(empty)</li>}
       </ul>
     </div>
+  )
+}
+
+function Verdict({ passed }: { passed: boolean }) {
+  return (
+    <span
+      className={`rounded-md px-2 py-0.5 text-xs font-semibold tracking-wide ${
+        passed ? 'bg-[var(--ok)]/10 text-ok' : 'bg-[var(--warn)]/15 text-warn'
+      }`}
+    >
+      {passed ? 'PASS' : 'FAIL'}
+    </span>
   )
 }
 
