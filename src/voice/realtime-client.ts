@@ -153,6 +153,14 @@ export class RealtimeVoiceClient {
    * this marked every interrupting turn as clean.
    */
   private followsInterruption = false
+  /**
+   * The server allows one response at a time. Turn detection creates responses
+   * on its own when the customer stops speaking, so a reply we ask for after a
+   * tool result can collide with one the server already started — which the API
+   * refuses outright. Asking is therefore queued rather than fired blindly.
+   */
+  private responseActive = false
+  private responseQueued = false
 
   constructor(sessionId: string, callbacks: VoiceCallbacks = {}) {
     this.sessionId = sessionId
@@ -238,6 +246,8 @@ export class RealtimeVoiceClient {
     if (this.pending?.finalizeTimer) clearTimeout(this.pending.finalizeTimer)
     this.pending = null
     this.assistantSpeaking = false
+    this.responseActive = false
+    this.responseQueued = false
     this.setState('idle')
   }
 
@@ -296,13 +306,21 @@ export class RealtimeVoiceClient {
         this.setState('listening')
         return
 
+      case 'response.created':
+        this.responseActive = true
+        return
+
       case 'response.done':
-        void this.handleResponseDone(event)
+        this.responseActive = false
+        void this.handleResponseDone(event).then(() => this.flushQueuedResponse())
         return
 
       case 'error': {
-        const message = (event.error as { message?: string } | undefined)?.message
-        this.callbacks.onError?.(message ?? 'The voice service reported an error.')
+        const message = (event.error as { message?: string } | undefined)?.message ?? ''
+        // Expected when a reply is asked for while one is already running. It
+        // is already queued, so surfacing it would be noise, not information.
+        if (message.includes('active response')) return
+        this.callbacks.onError?.(message || 'The voice service reported an error.')
         return
       }
     }
@@ -324,6 +342,10 @@ export class RealtimeVoiceClient {
     if (this.audioElement) this.audioElement.muted = true
     this.assistantSpeaking = false
     this.followsInterruption = true
+    // Any reply still waiting to be spoken answers the request the customer
+    // just changed. Speaking it now would be answering a superseded question;
+    // their new turn will produce its own reply.
+    this.responseQueued = false
     if (this.pending) this.pending.bargedIn = true
     this.callbacks.onBargeIn?.()
     void this.record('barge_in', { at: Date.now(), turn: this.turn })
@@ -388,7 +410,24 @@ export class RealtimeVoiceClient {
         ANSWER_TIMEOUT_MS,
       )
     }
+    this.requestResponse()
+  }
+
+  /** Asks for a spoken reply, waiting if the server is already producing one. */
+  private requestResponse(): void {
+    if (this.responseActive) {
+      this.responseQueued = true
+      return
+    }
+    this.responseQueued = false
     this.send({ type: 'response.create' })
+  }
+
+  private flushQueuedResponse(): void {
+    if (this.responseQueued && !this.responseActive) {
+      this.responseQueued = false
+      this.send({ type: 'response.create' })
+    }
   }
 
   private async runTool(
