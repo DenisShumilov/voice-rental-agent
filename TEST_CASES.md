@@ -8,7 +8,8 @@ the same definitions drive both `npm test` and the **Run all checks** button on
 `/review`. The page a reviewer clicks and the suite CI runs cannot disagree
 about what passed.
 
-**Last run:** 2026-09-14T17:51:51Z — 6 of 6 scenarios, 33 of 33 checks passed.
+**Last run:** 2026-09-14T18:34:17Z — 6 of 6 scenarios, 33 of 33 checks passed,
+against the deployed application.
 
 ---
 
@@ -231,7 +232,7 @@ Database: 1 row → 1 row.
 sentence over the customer; the interruption is recorded; whatever it was about
 to confirm is not saved.
 
-**Actual, 2026-09-14:** verified by ear across three conversations. Nine
+**Actual, 2026-09-14:** verified by ear across five conversations. Fifteen
 interruptions were recorded and the agent stopped each time. `/review` shows the
 count per conversation.
 
@@ -249,7 +250,7 @@ Two honest notes:
 
 ## Invariant tests underneath
 
-49 tests, run by `npm test`. The ones that matter most:
+60 tests, run by `npm test`. The ones that matter most:
 
 | Test | Guards against |
 |---|---|

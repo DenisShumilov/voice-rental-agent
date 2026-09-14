@@ -86,7 +86,7 @@ Open `http://localhost:3000`, allow the microphone, press **Start talking**.
 |---|---|
 | `npm run dev` | development server |
 | `npm run reset-db` | drops and rebuilds the database, reloads catalogue and seed |
-| `npm test` | 49 unit and integration tests |
+| `npm test` | 60 unit and integration tests |
 | `npm run doctor` | checks that changeable values live in exactly one file |
 | `npm run check` | typecheck + tests + doctor — the gate before anything is "done" |
 
@@ -206,7 +206,7 @@ a draft id is not a capability — confirming requires owning the conversation.
 ## Test evidence
 
 ```bash
-npm test          # 49 tests
+npm test          # 60 tests
 npm run check     # typecheck + tests + doctor
 ```
 
@@ -238,29 +238,47 @@ the interruption count per conversation.
 Measured, not promised. Both come from recorded conversations; `/review` shows
 the live figures.
 
-**Latency**, 14 turns, silence window 500 ms:
+**Latency**, 54 turns across five conversations, silence window 500 ms:
 
-| Measure | n | min | median | p95 | max |
-|---|---|---|---|---|---|
-| Turn end → answer begins | 14 | 1139 | **1386 ms** | 2301 | 2301 |
-| Turn end → actually audible | 14 | 1242 | **1584 ms** | 2435 | 2435 |
+| Measure | n | min | median | p95 |
+|---|---|---|---|---|
+| Turn end → any audio begins | 54 | 805 | **1186 ms** | 2476 |
+| Turn end → actually audible | 53 | 988 | **1351 ms** | 2839 |
+| Turn end → the answer itself | 30 | 805 | **1414 ms** | 4865 |
 
 Server VAD reports the turn as ended only after hearing a full silence window,
 so that window is *added back* to reach "end of the customer's turn", not
 subtracted from it. The audible figure adds the browser's reported output-device
-latency. A sample this small supports a median, not a guarantee.
+latency.
 
-**Cost**, from the token counts the API returns with each response — 23
-responses over 2.49 minutes:
+Splitting by whether the turn had to consult the database is where the number
+becomes useful:
 
-| Component | USD |
-|---|---|
-| Audio out | $0.0695 |
-| Audio in | $0.0145 |
-| Input transcription | $0.0112 |
-| Text in + out + cached | $0.0132 |
-| **Total** | **$0.1085** |
-| **Per minute** | **$0.0435** |
+| Turn type | n | median |
+|---|---|---|
+| No database lookup — the answer | 21 | **1108 ms** |
+| Lookup — the acknowledgement | 33 | **1219 ms** |
+| Lookup — the answer | 9 | **4001 ms** |
+
+A lookup turn costs the model two passes — one to call the tool, one to speak
+the result — so its answer takes 3.6× longer. The agent says a short
+acknowledgement before looking up, which removes the silence without making the
+answer any sooner; both rows are reported so that cannot be read as a speed-up.
+
+**Cost**, from the token counts the API returns with each response — 96
+responses over 11.5 minutes:
+
+| Component | USD | Share |
+|---|---|---|
+| Audio out | $0.2184 | 58% |
+| Input transcription | $0.0515 | 14% |
+| Audio in | $0.0493 | 13% |
+| Text in + out + cached | $0.0459 | 12% |
+| **Total** | **$0.3754** | |
+| **Per minute** | **$0.0328** | |
+
+Per-minute cost falls as a conversation lengthens ($0.0435 → $0.0328 across the
+runs), so this figure should not be extrapolated to short interactions.
 
 Prices are in `src/config/pricing.ts`, each with the page it was read from.
 Hosting is reported separately in [`DELIVERY_NOTES.md`](./DELIVERY_NOTES.md).

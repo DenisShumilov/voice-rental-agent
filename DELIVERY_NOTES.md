@@ -2,11 +2,11 @@
 
 ## Time spent
 
-**1 hour 47 minutes of elapsed wall-clock time**, of which roughly 20 minutes
-was an enforced pause on my AI tooling. So about **1 hour 25 minutes of actual
+**2 hours 26 minutes of elapsed wall-clock time**, of which roughly 20 minutes
+was an enforced pause on my AI tooling. So about **2 hours 5 minutes of actual
 work**, against an eight-hour ceiling.
 
-Measured, not estimated: first session artefact 19:08, first commit 20:54, on
+Measured, not estimated: first session artefact 19:08, last commit 21:40, on
 2026-09-14. The commit timestamps in the repository are the record.
 
 | Phase | Clock |
@@ -19,7 +19,9 @@ Measured, not estimated: first session artefact 19:08, first commit 20:54, on
 | *(paused — AI usage limit)* | 20:00 – 20:20 |
 | Voice: ephemeral tokens, WebRTC, tool loop, barge-in, instrumentation | 20:22 – 20:30 |
 | Measurement runs, three rounds of fixing the instrumentation, reviewer page | 20:30 – 20:45 |
-| Documentation, repository | 20:45 – 20:55 |
+| Documentation, repository, deployment | 20:45 – 21:05 |
+| Storefront that answers for the dates spoken aloud; acknowledgement before a lookup | 21:05 – 21:15 |
+| Extracting turn timing so it could be tested without a microphone | 21:15 – 21:40 |
 
 This is far under the ceiling because the work was AI-assisted throughout: I
 directed the architecture and the verification strategy, and the code was
@@ -93,6 +95,27 @@ The four real ones, all fixed and all now covered by regression tests:
 of the guards and confirmed the corresponding tests went red, then restored
 them. A regression test that passes either way proves nothing.
 
+**5. Making the untestable part testable, after it bit me three times.** Three
+latency-measurement bugs shipped in a row, each caught only by reading recorded
+data after a manual conversation. None was about audio; all three were wrong
+assumptions about the order of events. They survived because the logic sat
+inside the WebRTC client alongside `RTCPeerConnection` and `AudioContext`, so
+nothing could exercise it without a browser and a voice.
+
+I extracted it into `src/voice/turn-timer.ts`, free of browser APIs, and wrote
+eleven tests that replay the event sequences a real conversation produces. Then
+I restored each of the three bugs in turn to confirm the suite catches them:
+
+| Bug restored | Tests failing |
+|---|---|
+| Subtract the silence window instead of adding it | 6 of 11 |
+| Close the turn on any response without a tool call | 1 of 11 |
+| Accept an audible reading from before the audio was sent | 1 of 11 |
+
+All three would have been caught in under a second instead of across four
+manual conversations. The client delegates to this module, so the tested logic
+is the logic that runs.
+
 ---
 
 ## Sample inputs and results
@@ -110,7 +133,7 @@ checks passed.**
 | TC05 | "Yes, confirm it" twice | same reference, still 1 reservation | as expected |
 | TC06 | "I need the camera next week" | clarification by voice, 0 written | as expected |
 
-Plus 49 unit and integration tests via `npm test`.
+Plus 60 unit and integration tests via `npm test`.
 
 ---
 
@@ -150,17 +173,61 @@ needs checking after it runs.
 to `.env`, template cleaned, `.gitignore` adjusted so the template is tracked and
 the real file is not. No commits had been made, so it never entered history.
 
+**`npm run reset-db` ignored `.env`.** Invisible locally, where the default is
+correct, but the documented setup step would silently have seeded the local file
+instead of the production database.
+
+**The reviewer's "Run all checks" button wrote to disk.** It worked locally and
+would have failed in production, where the filesystem is read-only — on the one
+button a reviewer is most likely to press. Caught by testing the deployment
+rather than the dev server. It now runs against an in-memory database.
+
+**Asking for a reply collided with one already running.** Adding the
+acknowledgement lengthened the window in which the customer can start speaking,
+and turn detection then creates a response of its own; our request for the tool
+result to be spoken landed on top of it and the API refused outright. Replies
+are now queued, and a queued reply is dropped on a barge-in because it answers
+a request the customer has just changed. My own optimisation opened this one.
+
+**Three latency-measurement bugs, described above.** Worth separating from the
+rest: building the voice agent was easier than measuring it honestly. Three
+iterations went not into features but into making the number mean what the
+label next to it says.
+
 ---
 
 ## Measured speed
 
-14 turns across one conversation, silence window 500 ms.
+54 turns across five conversations, silence window 500 ms.
 
 | Measure | n | min | median | p95 | max |
 |---|---|---|---|---|---|
-| Turn end → answer begins | 14 | 1139 | **1386 ms** | 2301 | 2301 |
-| Turn end → actually audible | 14 | 1242 | **1584 ms** | 2435 | 2435 |
-| Of those, not following an interruption | 6 | 1140 | 1467 | 2129 | 2129 |
+| Turn end → any audio begins | 54 | 805 | **1186 ms** | 2476 | 3441 |
+| Turn end → actually audible | 53 | 988 | **1351 ms** | 2839 | 3603 |
+| Turn end → the answer itself | 30 | 805 | **1414 ms** | 4865 | 5124 |
+| Any audio, not following an interruption | 37 | 805 | 1170 | 3313 | 3441 |
+
+### Where the time actually goes
+
+This is the finding worth the measurement.
+
+| Turn type | n | min | median | max |
+|---|---|---|---|---|
+| No database lookup — the answer | 21 | 805 | **1108 ms** | 1908 |
+| Lookup — the acknowledgement | 33 | 875 | **1219 ms** | 3441 |
+| Lookup — the answer | 9 | 3180 | **4001 ms** | 5124 |
+
+A turn that has to consult the database takes **3.6× longer** to reach its
+actual answer, because the model makes two passes: one to call the tool, one to
+speak the result. Nothing about the database is slow — the query is a few
+milliseconds. The cost is the second pass through the model.
+
+The agent now says a short acknowledgement before looking up. That lands at
+1219 ms — indistinguishable from a normal answer — so the silence disappears.
+It does not make the answer arrive sooner, and both rows are reported precisely
+so that improvement cannot be read as a speed-up. Measuring only
+time-to-first-audio after adding an acknowledgement would have been gaming the
+metric.
 
 **How the timestamps were taken.** The turn-end mark is the arrival of
 `input_audio_buffer.speech_stopped` on the WebRTC data channel, taken with
@@ -177,37 +244,45 @@ and jitter buffering. The audible figure covers those, which is why it sits
 about 200 ms higher, and is the more honest answer to "when did a person hear
 something".
 
-**Observations.** Turns needing a database lookup are the slow ones: the model
-makes one pass to call the tool and another to speak the result. Turns with no
-lookup land at 805–988 ms. And interrupting does not make the agent slower to
-recover — the uninterrupted median is slightly *higher*, not lower.
+**Observations.** Interrupting does not make the agent slower to recover: the
+uninterrupted median (1170 ms) is barely different from the overall one
+(1186 ms). And one audible reading was dropped as impossible — it claimed a
+turn was heard before its audio had been sent, because the onset detector had
+caught the previous answer still playing out after a barge-in. The reviewer page
+states the count rather than quietly excluding it.
 
 For context, the only public measurement of this API with a stated methodology
 is 1.76–1.86 s (webrtcHacks, January 2025), whose author notes results have
-improved since. We are in a better range, on a sample of 14 turns, on one
-machine and one network.
+improved since. Our figure for a turn needing no lookup sits below that; a turn
+needing one sits above. On 54 turns, one machine, one network.
 
 ---
 
 ## Measured cost
 
 From the token counts the API returns with each response — not an estimate of
-how long anyone spoke. 23 responses across 2.49 minutes of conversation.
+how long anyone spoke. 96 responses across 11.5 minutes of conversation.
 
 | Component | Tokens | USD | Share |
 |---|---|---|---|
-| Speech generation (audio out) | 3,477 | $0.0695 | 64% |
-| Audio input | 1,448 | $0.0145 | 13% |
-| Input transcription | — | $0.0112 | 10% |
-| Reasoning + text out | 2,382 | $0.0057 | 5% |
-| Text in (uncached) | 5,984 | $0.0036 | 3% |
-| Text in (cached) | 45,248 | $0.0039 | 4% |
-| **Total** | | **$0.1085** | |
-| **Per minute** | | **$0.0435** | |
+| Speech generation (audio out) | 10,918 | $0.2184 | 58% |
+| Input transcription | — | $0.0515 | 14% |
+| Audio input | 4,929 | $0.0493 | 13% |
+| Reasoning + text out | 9,764 | $0.0234 | 6% |
+| Text in (uncached) | 28,033 | $0.0168 | 4% |
+| Text in (cached) | 18,944 | $0.0057 | 2% |
+| **Total** | | **$0.3754** | |
+| **Per minute** | | **$0.0328** | |
+
+**Per-minute cost falls as a conversation lengthens**, which is worth stating
+because it means this figure must not be extrapolated to short interactions.
+Across the runs it went $0.0435 → $0.0369 → $0.0328 per minute as sessions got
+longer, because the instructions and history move into the cache. A ten-second
+interaction would cost considerably more per minute than this.
 
 **Retries: none occurred.** A failed tool call returns a spoken apology rather
 than retrying, so retry cost in the measured run is zero. A retry would cost one
-further model response, roughly $0.005 at the observed rate.
+further model response, roughly $0.004 at the observed rate.
 
 **Paid intermediaries: none.** The browser connects directly to OpenAI over
 WebRTC; there is no telephony provider, no media server, no agent platform in
@@ -231,10 +306,17 @@ All verified against the live pricing page on 2026-09-14 and recorded in
 $0.05 per minute. Our computed $0.0435 lands in the same place, which is the
 check that the arithmetic is not out by an order of magnitude.
 
-**Caching matters more than it looks.** 45,248 of 51,232 input tokens were
-cached. Without that, input would cost roughly four times more. The cache warms
-over a conversation, so a short call costs more per minute than a long one — the
-figure above should not be extrapolated to 10-second interactions.
+**Where the money actually goes.** Speech generation is 58% of the bill, and
+audio in and out together are 71%. Text — the instructions, the conversation
+history, the tool schemas, the reasoning — is 12% in total, cached or not.
+Shortening what the agent says is therefore worth far more than any prompt
+optimisation, and it shortens the customer's wait at the same time.
+
+Caching did less than a single run suggested. In the first conversation 45,248
+of 51,232 text input tokens were cached; across all five, 18,944 of 46,977 were.
+Text input is cheap either way, so the per-minute decline is mostly audio output
+being amortised over longer sessions rather than a cache effect. The first
+conversation alone would have supported a stronger claim than the data does.
 
 ### Hosting, reported separately
 
@@ -314,11 +396,12 @@ permit a double booking.
 
 In the order I would actually do it.
 
-1. **Speak while the database is checked.** Turns needing a lookup are about a
-   second slower, because the model makes two passes. A short filler — "let me
-   check" — emitted as soon as a tool call starts would remove the silence
-   without touching the transaction. This is the largest perceived-speed win
-   available and it costs almost nothing.
+1. **Remove the second model pass on a lookup turn.** The acknowledgement hides
+   the silence, but the answer still takes 4.0 s against 1.1 s. The fix is not a
+   better filler — it is not going back to the model twice. Pre-fetching
+   availability for the item as soon as it is named, so the tool result is
+   already in hand when the dates arrive, would collapse most of that gap. This
+   is the single largest real improvement available.
 
 2. **Make `sessionId` real.** It currently comes from the browser unverified. The
    booking invariants hold regardless, but a signed session cookie would make
@@ -329,9 +412,11 @@ In the order I would actually do it.
    agent's instructions toward shorter confirmations is the highest-leverage
    cost change, and it also shortens time-to-understanding for the customer.
 
-4. **Measure properly.** Fourteen turns on one machine supports a median and
-   nothing stronger. A scripted harness replaying recorded audio would give
-   percentiles worth quoting, and would catch latency regressions.
+4. **Measure across more than one machine.** Fifty-four turns support a median;
+   they do not support a p95, and they say nothing about other networks or
+   devices. The turn-timing logic is now covered by replayable tests, so what is
+   missing is real audio: a harness that replays recorded speech through the
+   whole stack would turn these medians into figures worth quoting.
 
 5. **Handle the speaker-echo problem in software.** Requiring headphones is a
    workaround. Suppressing input while the agent speaks, or raising the VAD
