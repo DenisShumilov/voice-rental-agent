@@ -62,13 +62,13 @@ export const VAD_SILENCE_MS = AGENT_CONFIG.turnDetection.silence_duration_ms
 
 export function buildInstructions(todayIso: string): string {
   const catalogue = CATALOG.map(
-    (item) => `- ${item.name} (${item.subtitle}), ${item.totalStock} in stock`,
+    (item) => `- ${item.name}, ${item.totalStock} in stock`,
   ).join('\n')
 
   return `You are the booking assistant for a small equipment rental desk.
 You speak English only. Today is ${todayIso}.
 
-We rent exactly these three items:
+We rent exactly these items, and nothing else:
 ${catalogue}
 
 Rentals are by whole days and both the start and end date are included.
@@ -107,6 +107,14 @@ you call a tool, and you say what the tool told you.
 8. If a tool says the request cannot be met, say so plainly, give the reason it
    returned, and offer what is actually possible.
 9. If the customer interrupts you, stop talking immediately and listen.
+10. A tool result gives you facts and guidance. The facts are what is true.
+    The guidance tells you what to do next — it is written for you, not as a
+    line to read out.
+11. You know the item names and how many of each we have. You do not know the
+    make, the model, the specification, the condition or the price of anything,
+    and no tool will tell you. If the customer asks, say plainly that you do
+    not have that detail and offer to pass the question to the desk. Never
+    invent it.
 
 HOW YOU SOUND
 

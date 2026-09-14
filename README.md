@@ -1,4 +1,4 @@
-# Aperture Rentals — voice booking agent
+# Equipment rental desk — voice booking agent
 
 A browser voice agent for a small equipment rental desk. The customer speaks;
 the agent listens, checks real availability against a database, asks for
@@ -232,6 +232,7 @@ database before and after each one.
 | `tests/booking.test.ts` | the four gates, idempotency, cross-session refusal, clock drift |
 | `tests/tools.test.ts` | argument validation, unknown tools, unbounded spans, read-only lookups |
 | `tests/scenarios.test.ts` | the six required scenarios, end to end through the tool layer |
+| `tests/turn-timer.test.ts` | replayed event sequences: barge-in, queued replies, lookup turns, impossible readings |
 | `tests/db.test.ts` | blank environment variables |
 
 Expected results are declared in `src/lib/scenarios.ts` and in
@@ -253,24 +254,24 @@ the live figures.
 never transcribed by hand.
 
 <!-- figures:latency -->
-Measured on 2026-09-14 across 9 recorded conversations,
+Measured on 2026-09-14 across 10 recorded conversations,
 silence window 500 ms. All figures in milliseconds.
 
 | Measure | n | min | median | p95 | max |
 |---|---|---|---|---|---|
-| Turn end → any audio begins | 69 | 805 | **1170** | 2181 | 3441 |
-| Turn end → actually audible | 68 | 988 | **1345** | 2813 | 3603 |
-| Turn end → the answer itself | 45 | 805 | **1204** | 4265 | 5124 |
-| Any audio, excluding turns after an interruption | 42 | 805 | **1102** | 2476 | 3441 |
+| Turn end → any audio begins | 71 | 805 | **1147** | 2181 | 3441 |
+| Turn end → actually audible | 70 | 988 | **1340** | 2813 | 3603 |
+| Turn end → the answer itself | 47 | 805 | **1204** | 4413 | 5124 |
+| Any audio, excluding turns after an interruption | 44 | 805 | **1102** | 2476 | 3441 |
 
 Split by whether the turn had to consult the database, which is where the
 time actually goes:
 
 | Turn type | n | min | median | p95 | max |
 |---|---|---|---|---|---|
-| No database lookup — the answer | 34 | 805 | **1102** | 1773 | 1908 |
-| Lookup — the acknowledgement | 35 | 875 | **1219** | 3313 | 3441 |
-| Lookup — the answer | 11 | 2969 | **4001** | 5124 | 5124 |
+| No database lookup — the answer | 35 | 805 | **1108** | 1773 | 1908 |
+| Lookup — the acknowledgement | 36 | 875 | **1204** | 3313 | 3441 |
+| Lookup — the answer | 12 | 2969 | **4007** | 5124 | 5124 |
 
 A turn that consults the database takes **3.6× longer** to reach its
 answer, because the model makes two passes: one to call the tool, one to speak
@@ -278,7 +279,7 @@ the result. The agent acknowledges before looking up, which removes the silence
 without making the answer arrive sooner — both rows are here so that cannot be
 read as a speed-up.
 
-69 turns recorded, 42 of them not following an interruption. 1 audible reading(s) dropped as impossible — the onset detector caught the previous answer still playing out after a barge-in. The answer time is not measurable on 23 turn(s) recorded before the client counted lookups correctly. A sample this size supports a median, not a promise.
+71 turns recorded, 44 of them not following an interruption. 1 audible reading(s) dropped as impossible — the onset detector caught the previous answer still playing out after a barge-in. The answer time is not measurable on 23 turn(s) recorded before the client counted lookups correctly. A sample this size supports a median, not a promise.
 <!-- /figures:latency -->
 
 Server VAD reports the turn as ended only after hearing a full silence window,
@@ -290,19 +291,19 @@ latency.
 
 <!-- figures:cost -->
 Measured on 2026-09-14 from the token counts the API returned with each
-response — 121 responses across 13.6 minutes of conversation.
+response — 124 responses across 13.8 minutes of conversation.
 
 | Component | Tokens | USD | Share |
 |---|---|---|---|
-| Speech generation (audio out) | 14,678 | $0.2936 | 60% |
-| Input transcription | — | $0.0611 | 12% |
-| Audio input | 6,711 | $0.0671 | 14% |
-| Reasoning + text out | 12,035 | $0.0289 | 6% |
-| Text in (uncached) | 37,545 | $0.0225 | 5% |
-| Text in (cached) | 187,968 | $0.0113 | 2% |
+| Speech generation (audio out) | 14,992 | $0.2998 | 60% |
+| Input transcription | — | $0.0622 | 12% |
+| Audio input | 6,787 | $0.0679 | 14% |
+| Reasoning + text out | 12,228 | $0.0293 | 6% |
+| Text in (uncached) | 40,079 | $0.0240 | 5% |
+| Text in (cached) | 189,120 | $0.0113 | 2% |
 | Audio input (cached) | 19,584 | $0.0059 | 1% |
-| **Total** | | **$0.4903** | |
-| **Per minute** | | **$0.0361** | |
+| **Total** | | **$0.5006** | |
+| **Per minute** | | **$0.0362** | |
 
 All seven rows are charged and sum to the total. Cached tokens are a subset of
 the input counts, billed at the cached rate rather than added on top.
@@ -310,7 +311,7 @@ the input counts, billed at the cached rate rather than added on top.
 Audio in and out together are 75% of the bill, so shortening what the agent
 says is worth more than any prompt optimisation. 83% of text input was
 served from cache; at the uncached rate those tokens would have cost
-$0.1128 instead of $0.0113.
+$0.1135 instead of $0.0113.
 <!-- /figures:cost -->
 
 Prices are in `src/config/pricing.ts`, each with the page it was read from.

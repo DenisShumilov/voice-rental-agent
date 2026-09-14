@@ -35,9 +35,9 @@ const RULES: Rule[] = [
     literals: ['gpt-realtime', 'server_vad'],
   },
   {
-    what: 'brand identity',
-    owners: ['src/config/brand.ts'],
-    literals: ['Aperture Rentals'],
+    what: 'the name on the page',
+    owners: ['src/config/copy.ts'],
+    literals: ['Equipment rental desk'],
   },
 ]
 

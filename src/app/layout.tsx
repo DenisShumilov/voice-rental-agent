@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 
-import { BRAND } from '@/config/brand'
+import { COPY } from '@/config/copy'
 import './globals.css'
 
 const geistSans = Geist({
@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: `${BRAND.name} — ${BRAND.headline}`,
-  description: BRAND.subheadline,
+  title: `${COPY.name} — ${COPY.headline}`,
+  description: COPY.subheadline,
 }
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {

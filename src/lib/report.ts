@@ -16,6 +16,12 @@ import { getDb } from './db'
 import { summarise } from './metrics'
 import { SCENARIOS } from './scenarios'
 
+type ItemRow = {
+  id: string
+  name: string
+  total_stock: number
+}
+
 type EventRow = {
   session_id: string
   ts: string
@@ -24,11 +30,14 @@ type EventRow = {
 }
 
 export async function buildReport() {
-  const [reservations, eventRows] = await Promise.all([
+  const [reservations, eventRows, itemRows] = await Promise.all([
     listReservations(),
     getDb()
       .execute('SELECT session_id, ts, type, payload FROM events ORDER BY id')
       .then((result) => result.rows as unknown as EventRow[]),
+    getDb()
+      .execute('SELECT id, name, total_stock FROM items ORDER BY id')
+      .then((result) => result.rows as unknown as ItemRow[]),
   ])
 
   const bySession = new Map<string, EventRow[]>()
@@ -167,11 +176,13 @@ export async function buildReport() {
       transcriptionModel: AGENT_CONFIG.transcriptionModel,
     },
     database: {
-      items: CATALOG.map((item) => ({
-        id: item.id,
-        sku: item.sku,
-        name: item.name,
-        totalStock: item.totalStock,
+      // Read back from the items table, not from CATALOG: the section is
+      // headed "Database", so a drift between the config file and what was
+      // actually seeded has to be visible rather than papered over.
+      items: itemRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        totalStock: Number(row.total_stock),
       })),
       seeded: SEED_RESERVATIONS,
       reservations,

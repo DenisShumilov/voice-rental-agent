@@ -12,7 +12,7 @@ async function main() {
   console.log('')
   console.log('Catalogue')
   for (const item of CATALOG) {
-    console.log(`  ${item.sku.padEnd(6)} ${item.name.padEnd(14)} ${item.totalStock} units`)
+    console.log(`  ${item.name.padEnd(14)} ${item.totalStock} units`)
   }
   console.log('')
   console.log('Seeded reservations')

@@ -64,15 +64,15 @@ Everything that may need changing lives in exactly one file.
 
 | What | Only file |
 |---|---|
-| Items, stock, name aliases, display copy | `src/config/catalog.ts` |
+| Items, stock, name aliases, photographs | `src/config/catalog.ts` |
 | Seeded reservations | `src/config/seed.ts` |
 | Rental limits and defaults | `src/config/rules.ts` |
 | Model, voice, prompt, turn detection | `src/config/agent.ts` |
 | Provider prices for the cost calculator | `src/config/pricing.ts` |
-| Brand name, colours, page copy | `src/config/brand.ts` |
+| The name on the page and every word of page copy | `src/config/copy.ts` |
 
 Hardcoding an item name, a seed date, a rental limit, a model ID, a price, or
-the brand name anywhere else is forbidden. Tests are the only exception, and
+a line of page copy anywhere else is forbidden. Tests are the only exception, and
 even there prefer reading the value from its config file so a live change to
 the catalogue does not break the suite.
 

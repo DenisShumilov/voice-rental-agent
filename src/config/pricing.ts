@@ -57,6 +57,8 @@ export const PRICING = {
 
 /** Monthly hosting, reported separately from per-conversation API cost. */
 export const HOSTING = {
+  verifiedOn: '2026-09-14',
+  sources: ['https://vercel.com/pricing', 'https://turso.tech/pricing'],
   current: [
     { item: 'Vercel Hobby', usdPerMonth: 0, note: 'Non-commercial use only' },
     { item: 'Turso Free', usdPerMonth: 0, note: '5 GB, 500M row reads per month' },

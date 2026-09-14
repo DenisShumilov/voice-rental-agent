@@ -10,7 +10,7 @@
 import Image from 'next/image'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { BRAND, TRUST_FACTS, VOICE_STATE_COPY, exampleUtterance } from '@/config/brand'
+import { COPY, VOICE_STATE_COPY, exampleUtterance } from '@/config/copy'
 import { CATALOG } from '@/config/catalog'
 import { useVoiceSession } from '@/voice/use-voice-session'
 
@@ -18,11 +18,7 @@ type Session = ReturnType<typeof useVoiceSession>
 
 type ShelfItem = {
   id: string
-  sku: string
   name: string
-  subtitle: string
-  specs: string
-  pricePerDay: number
   image: string | null
   totalStock: number
   availableForDates: number | null
@@ -30,11 +26,7 @@ type ShelfItem = {
 
 const INITIAL_SHELF: ShelfItem[] = CATALOG.map((item) => ({
   id: item.id,
-  sku: item.sku,
   name: item.name,
-  subtitle: item.subtitle,
-  specs: item.specs,
-  pricePerDay: item.pricePerDay,
   image: item.image ?? null,
   totalStock: item.totalStock,
   availableForDates: null,
@@ -75,7 +67,7 @@ export default function StorefrontPage() {
     <>
       <main className="mx-auto max-w-5xl px-5 py-8 lg:px-8">
         <header className="flex items-baseline justify-between border-b border-border pb-5">
-          <span className="text-lg font-semibold tracking-tight">{BRAND.name}</span>
+          <span className="text-lg font-semibold tracking-tight">{COPY.name}</span>
           <a href="/review" className="text-sm text-text-muted underline-offset-4 hover:underline">
             Reviewer view
           </a>
@@ -83,9 +75,9 @@ export default function StorefrontPage() {
 
         <section className="py-12">
           <h1 className="max-w-2xl text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl">
-            {BRAND.headline}
+            {COPY.headline}
           </h1>
-          <p className="mt-4 max-w-xl text-base text-text-muted">{BRAND.subheadline}</p>
+          <p className="mt-4 max-w-xl text-base text-text-muted">{COPY.subheadline}</p>
 
           <button
             type="button"
@@ -93,20 +85,45 @@ export default function StorefrontPage() {
             className="mt-7 inline-flex items-center gap-2.5 rounded-xl bg-accent px-6 py-3.5 text-base font-medium text-accent-fg transition hover:opacity-90"
           >
             <MicIcon />
-            {session.isLive ? 'Back to the conversation' : BRAND.startCta}
+            {session.isLive ? 'Back to the conversation' : COPY.startCta}
           </button>
-
-          <ul className="mt-8 grid gap-2 border-t border-border pt-5 text-sm text-text-muted sm:grid-cols-3">
-            {TRUST_FACTS.map((fact) => (
-              <li key={fact}>{fact}</li>
-            ))}
-          </ul>
         </section>
+
+        {session.bookings.length > 0 && (
+          <section className="pb-4">
+            <h2 className="border-b border-border pb-2.5 text-sm font-medium tracking-wide text-text-muted uppercase">
+              {COPY.bookedHeading}
+            </h2>
+            <ul className="mt-3 space-y-2">
+              {session.bookings.map((made) => (
+                <li
+                  key={made.reference}
+                  className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-[var(--radius)] border border-[var(--ok)] bg-surface p-3.5"
+                >
+                  <span className="font-medium">
+                    {made.item} ×{made.quantity}
+                  </span>
+                  <span className="font-mono text-sm text-text-muted">
+                    {made.startDate} → {made.endDate}
+                  </span>
+                  {made.remaining !== null && (
+                    <span className="text-sm text-text-muted">
+                      {made.remaining} left for those dates
+                    </span>
+                  )}
+                  <span className="font-mono text-[11px] text-text-muted">
+                    Reference {made.reference.slice(0, 8)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="pb-28">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2.5">
             <h2 className="text-sm font-medium tracking-wide text-text-muted uppercase">
-              {BRAND.shelfHeading}
+              {COPY.shelfHeading}
             </h2>
             <p className="font-mono text-xs text-text-muted">
               {startDate && endDate ? (
@@ -142,7 +159,8 @@ export default function StorefrontPage() {
 function ProductCard({ item, hasDates }: { item: ShelfItem; hasDates: boolean }) {
   const free = item.availableForDates
   const soldOut = hasDates && free === 0
-  // A missing photograph falls back to the SKU tile rather than a broken image.
+  // A missing photograph falls back to a tile carrying the item's name rather
+  // than a broken image.
   const [imageFailed, setImageFailed] = useState(false)
 
   return (
@@ -154,39 +172,29 @@ function ProductCard({ item, hasDates }: { item: ShelfItem; hasDates: boolean })
           // version sized to the card instead.
           <Image
             src={item.image}
-            alt={item.subtitle}
+            alt={item.name}
             fill
             sizes="(min-width: 640px) 33vw, 100vw"
             onError={() => setImageFailed(true)}
             className="object-cover"
           />
         ) : (
-          <span className="absolute inset-0 flex items-center justify-center font-mono text-2xl tracking-[0.2em] text-text-muted/40">
-            {item.sku}
+          <span className="absolute inset-0 flex items-center justify-center px-3 text-center text-sm tracking-wide text-text-muted/50">
+            {item.name}
           </span>
         )}
       </div>
 
       <div className="flex flex-1 flex-col p-4">
-        <p className="font-mono text-[11px] tracking-wider text-text-muted">{item.sku}</p>
-        <h3 className="mt-1.5 font-medium">{item.name}</h3>
-        <p className="text-sm text-text-muted">{item.subtitle}</p>
-        <p className="mt-0.5 text-xs text-text-muted">{item.specs}</p>
+        <h3 className="font-medium">{item.name}</h3>
 
-        <div className="mt-4 flex items-baseline justify-between border-t border-border pt-3">
-          <span className="font-mono text-sm">
-            ${item.pricePerDay}
-            <span className="text-text-muted"> /day</span>
-          </span>
-          <span
-            className={`text-xs ${soldOut ? 'text-warn' : hasDates ? 'text-ok' : 'text-text-muted'}`}
-          >
-            {hasDates && free !== null
-              ? free === 0
-                ? 'None free'
-                : `${free} free`
-              : `${item.totalStock} in stock`}
-          </span>
+        <div className="mt-auto flex items-baseline justify-between border-t border-border pt-3">
+          <span className="text-xs text-text-muted">{item.totalStock} in stock</span>
+          {hasDates && free !== null && (
+            <span className={`text-xs ${soldOut ? 'text-warn' : 'text-ok'}`}>
+              {free === 0 ? 'None free on these dates' : `${free} free on these dates`}
+            </span>
+          )}
         </div>
       </div>
     </article>
@@ -345,7 +353,7 @@ function VoiceWidget({
           <VoiceOrb levelRef={session.levelRef} state={state} size={26} />
         </span>
         <span className="text-sm font-medium">
-          {session.isLive ? VOICE_STATE_COPY[state] : BRAND.startCta}
+          {session.isLive ? VOICE_STATE_COPY[state] : COPY.startCta}
         </span>
       </button>
     )
@@ -354,12 +362,16 @@ function VoiceWidget({
   return (
     <div className="fixed right-5 bottom-5 z-50 flex max-h-[min(38rem,calc(100vh-2.5rem))] w-[22rem] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-2xl">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-        <span className="text-sm font-medium">{BRAND.name}</span>
+        <span className="text-sm font-medium">{COPY.name}</span>
         <div className="flex items-center gap-3">
           {lastLatency && (
             <span
               className="font-mono text-[11px] text-text-muted"
-              title="From the end of your turn to the agent's answer"
+              title={
+                lastLatency.turnEndToAnswerMs !== null
+                  ? 'From the end of your turn to the audio carrying the answer'
+                  : 'From the end of your turn to the first audio back — this turn needed no lookup, so that audio is the answer'
+              }
             >
               {lastLatency.turnEndToAnswerMs ?? lastLatency.turnEndToAudioMs} ms
             </span>
@@ -381,7 +393,7 @@ function VoiceWidget({
         <button
           type="button"
           onClick={session.isLive ? session.stop : onStart}
-          aria-label={session.isLive ? BRAND.stopCta : BRAND.startCta}
+          aria-label={session.isLive ? COPY.stopCta : COPY.startCta}
           className="w-full cursor-pointer transition hover:opacity-90"
         >
           <VoiceOrb levelRef={session.levelRef} state={state} />
@@ -398,17 +410,17 @@ function VoiceWidget({
           }`}
         >
           {session.isLive ? (
-            BRAND.stopCta
+            COPY.stopCta
           ) : (
             <>
               <MicIcon />
-              {BRAND.startCta}
+              {COPY.startCta}
             </>
           )}
         </button>
 
         {transcript.length === 0 && (
-          <p className="mt-2 text-center text-xs text-text-muted">{BRAND.micHint}</p>
+          <p className="mt-2 text-center text-xs text-text-muted">{COPY.micHint}</p>
         )}
       </div>
 

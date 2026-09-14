@@ -236,7 +236,7 @@ async function runCheckAvailability(rawArgs: unknown): Promise<ToolResult> {
             ? resolved.candidates.map((candidate) => candidate.name)
             : undefined,
       },
-      guidance: 'Ask the customer which of the three items they mean.',
+      guidance: 'Ask the customer which item they mean.',
     }
   }
 
@@ -284,7 +284,7 @@ function clarificationGuidance(
     parts.push(
       options.length > 0
         ? `Ask which item they mean: ${options.join(' or ')}.`
-        : 'Ask which of the three items they want.',
+        : 'Ask which item they want.',
     )
   }
   if (reasons.includes('quantity')) parts.push('Ask how many units they need.')

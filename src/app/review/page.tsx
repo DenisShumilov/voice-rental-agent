@@ -38,7 +38,7 @@ type Stats = { count: number; min: number; median: number; p95: number; max: num
 type Summary = {
   agent: Record<string, unknown>
   database: {
-    items: Array<{ sku: string; name: string; totalStock: number }>
+    items: Array<{ name: string; totalStock: number }>
     seeded: Array<{ itemId: string; quantity: number; startDate: string; endDate: string }>
     reservations: Snapshot['reservations']
   }
@@ -71,6 +71,8 @@ type Summary = {
       anchor: { model: string; usdPerMinute: number }
     }
     hosting: {
+      verifiedOn: string
+      sources: string[]
       current: Array<{ item: string; usdPerMonth: number; note: string }>
       ifRunCommercially: Array<{ item: string; usdPerMonth: number; note: string }>
     }
@@ -176,8 +178,8 @@ export default function ReviewPage() {
         {summary && (
           <>
             <Table
-              head={['Item', 'SKU', 'Total stock']}
-              rows={summary.database.items.map((item) => [item.name, item.sku, String(item.totalStock)])}
+              head={['Item', 'Total stock']}
+              rows={summary.database.items.map((item) => [item.name, String(item.totalStock)])}
             />
             <p className="mt-5 mb-2 text-sm font-medium">
               Reservations on file ({summary.database.reservations.length})
@@ -559,6 +561,7 @@ function HostingTable({ hosting }: { hosting: Summary['cost']['hosting'] }) {
       />
       <p className="mt-2 text-xs text-text-muted">
         Free credit is valued at list price above; the free tiers are free to us, not free to run.
+        Read from {hosting.sources.join(' and ')} on {hosting.verifiedOn}.
       </p>
     </div>
   )

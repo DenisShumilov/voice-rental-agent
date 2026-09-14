@@ -76,7 +76,7 @@ function describeRefusal(status: number, body: string): string {
       providerCode === 'credit_balance_exhausted' || /credit|quota/i.test(providerMessage)
     return outOfCredit
       ? `The OpenAI account has no credit left, so the voice session could not start. Add credit at platform.openai.com/settings/organization/billing. (${providerMessage})`
-      : `Too many voice sessions at once. Wait a moment and try again. (${providerMessage})`
+      : `The voice service refused the connection: rate limited (429). Wait a moment and try again. (${providerMessage})`
   }
 
   if (status === 401 || status === 403) {
@@ -137,10 +137,11 @@ export class RealtimeVoiceClient {
           audio: { echoCancellation: true, noiseSuppression: true },
         })
       } catch {
-        // The browser's own message here is a bare error name. A customer who
-        // just dismissed a permission prompt needs to know what to do next.
+        // The browser's own message here is a bare error name, and it covers
+        // three different causes — permission denied, no device, device held by
+        // another app. Name the remedy rather than guessing the cause.
         throw new Error(
-          'No microphone. Allow microphone access for this page in your browser, then press Start talking again.',
+          'Could not open the microphone. Check that this page is allowed to use it and that no other app is holding it, then press Start talking again.',
         )
       }
 
@@ -381,7 +382,7 @@ export class RealtimeVoiceClient {
         status: 'unavailable',
         facts: {},
         guidance:
-          'The booking system could not be reached, so nothing was saved. Apologise and ask the customer to try again in a moment.',
+          'The booking system could not be reached. You do not know whether anything was saved, so do not say either way. Apologise, and ask the customer to try again in a moment.',
       }
     }
   }

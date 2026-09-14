@@ -5,16 +5,14 @@
 
 /** Product photographs live in public/ and are referenced by path. They were
  *  generated for this project as one consistent set — same backdrop, light and
- *  angle — rather than assembled from stock, which never matches. A missing
- *  file degrades to a typographic tile rather than a broken image. */
+ *  angle — rather than assembled from stock, which never matches. They depict
+ *  no real product, carry no branding, and make no claim about the equipment:
+ *  the card states the item name and the stock count, nothing else. A missing
+ *  file degrades to a tile carrying the item's name rather than a broken
+ *  image. */
 export type CatalogItem = {
   id: string
-  sku: string
   name: string
-  subtitle: string
-  specs: string
-  /** Day rate. Within the range real gear-rental houses charge for this class. */
-  pricePerDay: number
   totalStock: number
   /** Optional photo URL. Falls back to a typographic tile when absent. */
   image?: string
@@ -25,36 +23,24 @@ export type CatalogItem = {
 export const CATALOG: CatalogItem[] = [
   {
     id: 'camera_a',
-    sku: 'CAM-A',
     name: 'Camera A',
-    subtitle: 'Digital SLR body',
-    specs: '24 MP · 1080p60 · EF mount',
-    pricePerDay: 75,
     totalStock: 2,
     image: '/camera-a.png',
-    aliases: ['camera a', 'cam a', 'camera', 'mirrorless', 'body'],
+    aliases: ['camera a', 'cam a', 'camera'],
   },
   {
     id: 'tripod_b',
-    sku: 'TRI-B',
     name: 'Tripod B',
-    subtitle: 'Carbon fibre tripod',
-    specs: '1.6 m · fluid ball head · 12 kg load',
-    pricePerDay: 35,
     totalStock: 3,
     image: '/tripod-b.png',
     aliases: ['tripod b', 'tripod', 'stand', 'legs'],
   },
   {
     id: 'mic_c',
-    sku: 'MIC-C',
     name: 'Microphone C',
-    subtitle: 'Handheld condenser',
-    specs: 'XLR · supercardioid · windshield',
-    pricePerDay: 30,
     totalStock: 1,
     image: '/microphone-c.png',
-    aliases: ['microphone c', 'mic c', 'microphone', 'mic', 'shotgun'],
+    aliases: ['microphone c', 'mic c', 'microphone', 'mic'],
   },
 ]
 
@@ -77,7 +63,7 @@ export function resolveItem(spoken: string): ResolveResult {
   if (text.length === 0) return { kind: 'not_found' }
 
   const matches = CATALOG.filter((item) => {
-    const needles = [item.id, item.sku, item.name, ...item.aliases]
+    const needles = [item.id, item.name, ...item.aliases]
     return needles.some((needle) => containsPhrase(text, normalise(needle)))
   })
 

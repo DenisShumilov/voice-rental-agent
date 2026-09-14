@@ -48,11 +48,7 @@ export async function GET(request: Request) {
     dates: availability ? { startDate, endDate } : null,
     items: CATALOG.map((item, index) => ({
       id: item.id,
-      sku: item.sku,
       name: item.name,
-      subtitle: item.subtitle,
-      specs: item.specs,
-      pricePerDay: item.pricePerDay,
       image: item.image ?? null,
       totalStock: item.totalStock,
       availableForDates: availability?.[index]?.available ?? null,
