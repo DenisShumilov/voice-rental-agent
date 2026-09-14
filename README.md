@@ -279,7 +279,7 @@ the result. The agent acknowledges before looking up, which removes the silence
 without making the answer arrive sooner — both rows are here so that cannot be
 read as a speed-up.
 
-71 turns recorded, 44 of them not following an interruption. 1 audible reading(s) dropped as impossible — the onset detector caught the previous answer still playing out after a barge-in. The answer time is not measurable on 23 turn(s) recorded before the client counted lookups correctly. A sample this size supports a median, not a promise.
+71 turns recorded, 44 of them not following an interruption. 1 audible reading dropped as impossible — the onset detector caught the previous answer still playing out after a barge-in. The answer time is not measurable on 23 turns recorded before the client counted lookups correctly. A sample this size supports a median, not a promise.
 <!-- /figures:latency -->
 
 Server VAD reports the turn as ended only after hearing a full silence window,

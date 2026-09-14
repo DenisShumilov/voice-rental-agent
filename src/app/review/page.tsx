@@ -9,6 +9,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { COPY } from '@/config/copy'
+
 type Check = { label: string; expected: unknown; actual: unknown; passed: boolean }
 type Step = { spoken: string | null; tool: string; status: string }
 type Snapshot = {
@@ -116,51 +118,61 @@ export default function ReviewPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-5 py-10 lg:px-8">
-      <header className="border-b border-border pb-5">
-        <div className="flex items-baseline justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">Reviewer view</h1>
-          <a href="/" className="text-sm text-text-muted underline-offset-4 hover:underline">
-            Back to the storefront
-          </a>
-        </div>
-        <p className="mt-2 max-w-2xl text-sm text-text-muted">
-          Evidence, not a dashboard. The checks below drive the same tool layer the voice agent
-          uses; the latency and cost figures come from recorded conversations. Nothing here is
+    <main className="mx-auto max-w-5xl px-5 py-8 lg:px-8">
+      <header className="flex items-baseline justify-between border-b border-border pb-5">
+        <span className="text-lg font-semibold tracking-tight">{COPY.name}</span>
+        <a href="/" className="text-sm text-text-muted underline-offset-4 hover:underline">
+          Back to the storefront
+        </a>
+      </header>
+
+      <section className="py-12">
+        <h1 className="max-w-2xl text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl">
+          Evidence, not a dashboard.
+        </h1>
+        <p className="mt-4 max-w-xl text-base text-text-muted">
+          The checks below drive the same tool layer the voice agent uses. The rows are the real
+          rows, and the latency and cost figures come from recorded conversations. Nothing here is
           illustrative.
         </p>
-      </header>
+
+        <button
+          type="button"
+          onClick={runChecks}
+          disabled={running}
+          className="mt-7 inline-flex items-center gap-2.5 rounded-xl bg-accent px-6 py-3.5 text-base font-medium text-accent-fg transition hover:opacity-90 disabled:opacity-50"
+        >
+          {running ? 'Running…' : 'Run all checks'}
+        </button>
+
+        {run && (
+          <p className={`mt-3 text-sm ${run.passed ? 'text-ok' : 'text-warn'}`}>
+            {run.passed ? 'All checks passed' : 'Some checks failed'} ·{' '}
+            <span className="font-mono text-xs text-text-muted">{run.ranAt}</span>
+          </p>
+        )}
+
+        {!summary && !error && (
+          <p className="mt-3 text-sm text-text-muted">Reading the recorded evidence…</p>
+        )}
+
+        {error && (
+          <p className="mt-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-warn">
+            {error}
+          </p>
+        )}
+      </section>
 
       {summary && <Headline summary={summary} run={run} />}
 
-      {!summary && !error && (
-        <p className="mt-5 text-sm text-text-muted">Reading the recorded evidence…</p>
-      )}
-
-      {error && (
-        <p className="mt-5 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-warn">
-          {error}
-        </p>
-      )}
-
-      <Section title="Required checks">
-        <div className="mb-4 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={runChecks}
-            disabled={running}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-fg transition hover:opacity-90 disabled:opacity-50"
-          >
-            {running ? 'Running…' : 'Run all checks'}
-          </button>
-          {run && (
-            <span className={`text-sm ${run.passed ? 'text-ok' : 'text-warn'}`}>
-              {run.passed ? 'All checks passed' : 'Some checks failed'} ·{' '}
-              <span className="font-mono text-xs text-text-muted">{run.ranAt}</span>
-            </span>
-          )}
-        </div>
-
+      <Section
+        title="Required checks"
+        meta={
+          run
+            ? `${run.results.filter((result) => result.passed).length} of ${run.results.length} passed`
+            : `${summary?.checks.total ?? ''} scenarios — not run yet`
+        }
+      >
         {!run && (
           <p className="text-sm text-text-muted">
             The checks run against a scratch database, so they never disturb the bookings below.
@@ -174,7 +186,10 @@ export default function ReviewPage() {
         ))}
       </Section>
 
-      <Section title="Database">
+      <Section
+        title="Database"
+        meta={summary ? `${summary.database.reservations.length} reservations on file` : undefined}
+      >
         {summary && (
           <>
             <Table
@@ -201,7 +216,10 @@ export default function ReviewPage() {
         )}
       </Section>
 
-      <Section title="Latency">
+      <Section
+        title="Latency"
+        meta={summary ? `${summary.latency.totalTurns} recorded turns` : undefined}
+      >
         {summary && (
           <>
             {summary.latency.allTurns.turnEndToAudio ? (
@@ -260,7 +278,7 @@ export default function ReviewPage() {
                   agent. Interrupted turns are kept: the measurement is still real, it just answers
                   a slightly different question.
                   {summary.latency.audibleDiscarded > 0 &&
-                    ` ${summary.latency.audibleDiscarded} audible readings are dropped as impossible: the detector caught the previous answer still playing out after a barge-in, so they claimed a turn was heard before its audio was sent.`}
+                    ` ${summary.latency.audibleDiscarded} audible ${summary.latency.audibleDiscarded === 1 ? "reading is" : "readings are"} dropped as impossible: the detector caught the previous answer still playing out after a barge-in, so it claimed a turn was heard before its audio was sent.`}
                   {summary.latency.supersededSamples > 0 &&
                     ` A further ${summary.latency.supersededSamples} samples are excluded entirely — recorded before the measurement definition was corrected.`}{' '}
                   A sample this small supports a median, not a promise.
@@ -301,7 +319,14 @@ export default function ReviewPage() {
         )}
       </Section>
 
-      <Section title="Cost">
+      <Section
+        title="Cost"
+        meta={
+          summary?.cost.breakdown
+            ? `${summary.cost.breakdown.minutes.toFixed(1)} recorded minutes`
+            : undefined
+        }
+      >
         {summary?.cost.breakdown ? (
           <>
             <Table
@@ -364,7 +389,10 @@ export default function ReviewPage() {
         )}
       </Section>
 
-      <Section title="Conversations">
+      <Section
+        title="Conversations"
+        meta={summary ? `${summary.sessions.length} recorded` : undefined}
+      >
         {!summary ? null : summary.sessions.length > 0 ? (
           <Table
             head={['Session', 'Started', 'Minutes', 'Turns', 'Tool calls', 'Interruptions', 'Bookings']}
@@ -418,7 +446,7 @@ function Headline({ summary, run }: { summary: Summary; run: RunResponse | null 
   ]
 
   return (
-    <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <dl className="grid gap-4 pb-12 sm:grid-cols-2 lg:grid-cols-4">
       {figures.map((figure) => (
         <div
           key={figure.label}
@@ -567,11 +595,23 @@ function HostingTable({ hosting }: { hosting: Summary['cost']['hosting'] }) {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  meta,
+  children,
+}: {
+  title: string
+  /** Right-aligned fact, the way the storefront shelf carries its dates. */
+  meta?: string
+  children: React.ReactNode
+}) {
   return (
-    <section className="border-b border-border py-8">
-      <h2 className="mb-4 text-sm font-medium tracking-wide text-text-muted uppercase">{title}</h2>
-      {children}
+    <section className="pb-12">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2.5">
+        <h2 className="text-sm font-medium tracking-wide text-text-muted uppercase">{title}</h2>
+        {meta && <p className="font-mono text-xs text-text-muted">{meta}</p>}
+      </div>
+      <div className="mt-4">{children}</div>
     </section>
   )
 }

@@ -101,10 +101,10 @@ function latencyBlock(report: Awaited<ReturnType<typeof buildReport>>, on: strin
 
   out += `\n${l.totalTurns} turns recorded, ${l.uninterruptedTurns} of them not following an interruption.`
   if (l.audibleDiscarded > 0) {
-    out += ` ${l.audibleDiscarded} audible reading(s) dropped as impossible — the onset detector caught the previous answer still playing out after a barge-in.`
+    out += ` ${l.audibleDiscarded} audible ${l.audibleDiscarded === 1 ? 'reading' : 'readings'} dropped as impossible — the onset detector caught the previous answer still playing out after a barge-in.`
   }
   if (l.answerNotMeasured > 0) {
-    out += ` The answer time is not measurable on ${l.answerNotMeasured} turn(s) recorded before the client counted lookups correctly.`
+    out += ` The answer time is not measurable on ${l.answerNotMeasured} turns recorded before the client counted lookups correctly.`
   }
   out += ` A sample this size supports a median, not a promise.`
 
@@ -171,7 +171,7 @@ function observationsBlock(report: Awaited<ReturnType<typeof buildReport>>): str
   out += `median on turns that did not follow an interruption (${clean} ms) is close to the\n`
   out += `overall one (${all} ms).`
   if (l.audibleDiscarded > 0) {
-    out += ` ${l.audibleDiscarded} audible reading(s) were dropped as impossible — they claimed a\n`
+    out += ` ${l.audibleDiscarded} audible ${l.audibleDiscarded === 1 ? 'reading was' : 'readings were'} dropped as impossible — claiming a\n`
     out += `turn was heard before its audio had been sent, because the onset detector had\n`
     out += `caught the previous answer still playing out after a barge-in. The reviewer page\n`
     out += `states the count rather than quietly excluding it.`
