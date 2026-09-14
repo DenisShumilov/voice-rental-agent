@@ -34,7 +34,28 @@ export const AGENT_CONFIG = {
    * with nonsense. The brief is one language, so say so.
    */
   transcriptionLanguage: 'en',
+  /**
+   * The microphone is a headset or a laptop at arm's length, not a room mic.
+   * Saying so filters the room before turn detection sees it, which is what
+   * produced transcripts of Japanese and Russian out of near-silence.
+   */
+  noiseReduction: 'near_field',
 } as const
+
+/**
+ * Words the transcriber should expect. Item names are the ones the customer
+ * must say for a booking to work at all, so a mishearing there costs more than
+ * anywhere else in the conversation.
+ */
+export function transcriptionKeywords(): string[] {
+  return [
+    ...CATALOG.map((item) => item.name),
+    'booking',
+    'confirm',
+    'available',
+    'rental',
+  ]
+}
 
 /** The fixed detection delay included in every raw latency measurement. */
 export const VAD_SILENCE_MS = AGENT_CONFIG.turnDetection.silence_duration_ms
@@ -110,9 +131,13 @@ export function buildSessionConfig(todayIso: string) {
     tool_choice: 'auto',
     audio: {
       input: {
+        noise_reduction: { type: AGENT_CONFIG.noiseReduction },
         transcription: {
           model: AGENT_CONFIG.transcriptionModel,
+          // `language` and `languages` are mutually exclusive — the API refuses
+          // a session that sends both.
           language: AGENT_CONFIG.transcriptionLanguage,
+          keywords: transcriptionKeywords(),
         },
         turn_detection: AGENT_CONFIG.turnDetection,
       },

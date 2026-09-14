@@ -2,17 +2,19 @@
 
 // The storefront. The only way to book here is to speak; there is no form.
 //
-// Two rules shape the layout. Merchandising and transaction are kept apart: the
-// cards are a shelf, and the docked panel owns dates, quantity, confirmation.
-// And everything shown about availability comes from a tool result or a server
-// lookup — never from the model's own words.
+// The assistant is a docked window in the corner, the shape every site uses for
+// one, because that is what a customer already knows how to open and dismiss.
+// The page behind it stays a shop. Everything it shows about availability comes
+// from a tool result or a server lookup, never from the model's own words.
 
 import Image from 'next/image'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { BRAND, TRUST_FACTS, VOICE_STATE_COPY, exampleUtterance } from '@/config/brand'
 import { CATALOG } from '@/config/catalog'
 import { useVoiceSession } from '@/voice/use-voice-session'
+
+type Session = ReturnType<typeof useVoiceSession>
 
 type ShelfItem = {
   id: string
@@ -41,6 +43,7 @@ const INITIAL_SHELF: ShelfItem[] = CATALOG.map((item) => ({
 export default function StorefrontPage() {
   const session = useVoiceSession()
   const [shelf, setShelf] = useState<ShelfItem[]>(INITIAL_SHELF)
+  const [open, setOpen] = useState(false)
 
   const startDate = session.request?.startDate ?? session.booking?.startDate ?? null
   const endDate = session.request?.endDate ?? session.booking?.endDate ?? null
@@ -63,46 +66,44 @@ export default function StorefrontPage() {
     }
   }, [startDate, endDate, session.booking?.reference])
 
-  return (
-    <main className="mx-auto max-w-6xl px-5 py-8 lg:px-8">
-      <header className="flex items-baseline justify-between border-b border-border pb-5">
-        <span className="text-lg font-semibold tracking-tight">{BRAND.name}</span>
-        <a href="/review" className="text-sm text-text-muted underline-offset-4 hover:underline">
-          Reviewer view
-        </a>
-      </header>
+  const begin = useCallback(() => {
+    setOpen(true)
+    void session.start()
+  }, [session])
 
-      {/* On a narrow screen the panel comes second, before the shelf: the thing
-          you are meant to do should not sit below the catalogue. On a wide one
-          it moves to the right and stays with you as the shelf scrolls. */}
-      <div className="flex flex-col gap-8 py-10 lg:grid lg:grid-cols-[1fr_360px] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-10">
-        <div className="order-1">
-          <h1 className="text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl">
+  return (
+    <>
+      <main className="mx-auto max-w-5xl px-5 py-8 lg:px-8">
+        <header className="flex items-baseline justify-between border-b border-border pb-5">
+          <span className="text-lg font-semibold tracking-tight">{BRAND.name}</span>
+          <a href="/review" className="text-sm text-text-muted underline-offset-4 hover:underline">
+            Reviewer view
+          </a>
+        </header>
+
+        <section className="py-12">
+          <h1 className="max-w-2xl text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl">
             {BRAND.headline}
           </h1>
-          <p className="mt-4 max-w-lg text-base text-text-muted">{BRAND.subheadline}</p>
+          <p className="mt-4 max-w-xl text-base text-text-muted">{BRAND.subheadline}</p>
 
-          {/* The control lives on the panel, beside the orb it drives. A second
-              identical button here would be two ways to do one thing. */}
-          <ul className="mt-7 grid gap-2 border-t border-border pt-5 text-sm text-text-muted sm:grid-cols-3">
+          <button
+            type="button"
+            onClick={session.isLive ? () => setOpen(true) : begin}
+            className="mt-7 inline-flex items-center gap-2.5 rounded-xl bg-accent px-6 py-3.5 text-base font-medium text-accent-fg transition hover:opacity-90"
+          >
+            <MicIcon />
+            {session.isLive ? 'Back to the conversation' : BRAND.startCta}
+          </button>
+
+          <ul className="mt-8 grid gap-2 border-t border-border pt-5 text-sm text-text-muted sm:grid-cols-3">
             {TRUST_FACTS.map((fact) => (
               <li key={fact}>{fact}</li>
             ))}
           </ul>
+        </section>
 
-          {session.error && (
-            <p className="mt-5 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-warn">
-              {session.error}
-            </p>
-          )}
-
-        </div>
-
-        <aside className="order-2 lg:order-none lg:sticky lg:top-8 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <VoicePanel session={session} />
-        </aside>
-
-        <div className="order-3 lg:col-start-1 lg:row-start-2">
+        <section className="pb-28">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2.5">
             <h2 className="text-sm font-medium tracking-wide text-text-muted uppercase">
               {BRAND.shelfHeading}
@@ -124,9 +125,17 @@ export default function StorefrontPage() {
               <ProductCard key={item.id} item={item} hasDates={Boolean(startDate && endDate)} />
             ))}
           </div>
-        </div>
-      </div>
-    </main>
+        </section>
+      </main>
+
+      <VoiceWidget
+        session={session}
+        open={open}
+        onOpen={() => setOpen(true)}
+        onClose={() => setOpen(false)}
+        onStart={begin}
+      />
+    </>
   )
 }
 
@@ -190,18 +199,20 @@ function ProductCard({ item, hasDates }: { item: ShelfItem; hasDates: boolean })
  * something listening — and the customer needs "is it hearing me?" answered at
  * a glance, not a signal reading.
  *
- * It is still driven by the real audio: the microphone while the customer
- * talks, the incoming stream while the agent answers. Thinking has no audio, so
- * it gets a slow pulse of its own rather than silence animated as if it were
- * sound. Written straight to the DOM each frame; putting this through React
- * would re-render the panel sixty times a second.
+ * Still driven by the real audio: the microphone while the customer talks, the
+ * incoming stream while the agent answers. Thinking has no audio, so it gets a
+ * slow pulse of its own rather than silence animated as if it were sound.
+ * Written straight to the DOM each frame; through React this would re-render
+ * the panel sixty times a second.
  */
 function VoiceOrb({
   levelRef,
   state,
+  size = 68,
 }: {
-  levelRef: ReturnType<typeof useVoiceSession>['levelRef']
-  state: ReturnType<typeof useVoiceSession>['state']
+  levelRef: Session['levelRef']
+  state: Session['state']
+  size?: number
 }) {
   const halo = useRef<HTMLSpanElement>(null)
   const core = useRef<HTMLSpanElement>(null)
@@ -218,7 +229,6 @@ function VoiceOrb({
 
       const current = stateRef.current
       const breathing = 0.5 + 0.5 * Math.sin(phase)
-
       const level =
         current === 'speaking'
           ? levelRef.current.output
@@ -233,9 +243,7 @@ function VoiceOrb({
             ? 0.06 * breathing
             : Math.min(1, level * 8)
 
-      if (core.current) {
-        core.current.style.transform = `scale(${1 + energy * 0.22})`
-      }
+      if (core.current) core.current.style.transform = `scale(${1 + energy * 0.22})`
       if (halo.current) {
         halo.current.style.transform = `scale(${0.9 + energy * 0.75})`
         halo.current.style.opacity = String(0.18 + energy * 0.5)
@@ -254,23 +262,31 @@ function VoiceOrb({
     : 'color-mix(in srgb, var(--accent) 38%, var(--surface-2))'
 
   return (
-    <div className="relative flex h-28 items-center justify-center">
+    <div
+      className="relative flex items-center justify-center"
+      style={{ height: size * 1.6 }}
+      aria-hidden="true"
+    >
       <span
         ref={halo}
-        aria-hidden="true"
-        className="absolute h-20 w-20 rounded-full blur-2xl will-change-transform"
-        style={{ background: colour, opacity: 0.2 }}
+        className="absolute rounded-full blur-2xl will-change-transform"
+        style={{ height: size * 1.2, width: size * 1.2, background: colour, opacity: 0.2 }}
       />
       <span
         ref={core}
-        aria-hidden="true"
-        className="relative flex h-[68px] w-[68px] items-center justify-center rounded-full transition-colors duration-500 will-change-transform"
+        className="relative flex items-center justify-center rounded-full transition-colors duration-500 will-change-transform"
         style={{
+          height: size,
+          width: size,
           background: `radial-gradient(circle at 34% 28%, color-mix(in srgb, ${colour} 40%, white), ${colour} 70%, color-mix(in srgb, ${colour} 75%, black))`,
           boxShadow: `0 10px 30px -10px ${colour}`,
         }}
       >
-        {!live && <span className="text-accent-fg/80"><MicIcon /></span>}
+        {!live && (
+          <span className="text-accent-fg/80">
+            <MicIcon />
+          </span>
+        )}
       </span>
     </div>
   )
@@ -293,51 +309,89 @@ function Bubble({ entry }: { entry: { role: 'user' | 'assistant'; text: string }
   )
 }
 
-function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }) {
+function VoiceWidget({
+  session,
+  open,
+  onOpen,
+  onClose,
+  onStart,
+}: {
+  session: Session
+  open: boolean
+  onOpen: () => void
+  onClose: () => void
+  onStart: () => void
+}) {
   const { state, request, bookings, transcript, latency } = session
-  // A request in progress takes the card; a booking made earlier in the same
-  // conversation moves to the list below rather than disappearing.
   const booking = request === null ? (bookings.at(-1) ?? null) : null
   const earlier = request === null ? bookings.slice(0, -1) : bookings
   // Only uninterrupted turns are shown: a barged-in turn times a cancelled
   // answer, not how fast the agent replies.
   const lastLatency = latency.filter((sample) => sample.clean).at(-1)
 
-  // The transcript grows while the customer is talking, not scrolling. Without
-  // this the newest line is the one they cannot see.
   const transcriptEnd = useRef<HTMLDivElement>(null)
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [transcript.length])
+  }, [transcript.length, request, booking])
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={session.isLive ? onOpen : onStart}
+        className="fixed right-5 bottom-5 z-50 flex items-center gap-2.5 rounded-full border border-border bg-surface py-2 pr-5 pl-2 shadow-lg transition hover:shadow-xl"
+      >
+        <span className="relative flex h-9 w-9 items-center justify-center">
+          <VoiceOrb levelRef={session.levelRef} state={state} size={26} />
+        </span>
+        <span className="text-sm font-medium">
+          {session.isLive ? VOICE_STATE_COPY[state] : BRAND.startCta}
+        </span>
+      </button>
+    )
+  }
 
   return (
-    <div className="flex max-h-[calc(100vh-6rem)] flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface">
-      <div className="relative border-b border-border px-5 pt-4 pb-4">
-        {lastLatency && (
-          <span
-            className="absolute top-4 right-5 font-mono text-xs text-text-muted"
-            title="From the end of your turn to the agent's answer"
+    <div className="fixed right-5 bottom-5 z-50 flex max-h-[min(38rem,calc(100vh-2.5rem))] w-[22rem] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-2xl">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <span className="text-sm font-medium">{BRAND.name}</span>
+        <div className="flex items-center gap-3">
+          {lastLatency && (
+            <span
+              className="font-mono text-[11px] text-text-muted"
+              title="From the end of your turn to the agent's answer"
+            >
+              {lastLatency.turnEndToAnswerMs ?? lastLatency.turnEndToAudioMs} ms
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Minimise"
+            className="text-text-muted transition hover:text-text"
           >
-            {lastLatency.turnEndToAnswerMs ?? lastLatency.turnEndToAudioMs} ms
-          </span>
-        )}
-        {/* The orb is the control, not a picture of one: that is where the eye
-            already is, and every voice product makes it clickable. */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 12h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="border-b border-border px-4 pb-3">
         <button
           type="button"
-          onClick={session.isLive ? session.stop : session.start}
+          onClick={session.isLive ? session.stop : onStart}
           aria-label={session.isLive ? BRAND.stopCta : BRAND.startCta}
-          className="w-full cursor-pointer rounded-xl transition hover:opacity-90"
+          className="w-full cursor-pointer transition hover:opacity-90"
         >
           <VoiceOrb levelRef={session.levelRef} state={state} />
         </button>
-
-        <p className="mt-1 text-center text-sm font-medium">{VOICE_STATE_COPY[state]}</p>
+        <p className="text-center text-sm font-medium">{VOICE_STATE_COPY[state]}</p>
 
         <button
           type="button"
-          onClick={session.isLive ? session.stop : session.start}
-          className={`mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+          onClick={session.isLive ? session.stop : onStart}
+          className={`mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
             session.isLive
               ? 'border border-border text-text-muted hover:bg-surface-2'
               : 'bg-accent text-accent-fg hover:opacity-90'
@@ -354,75 +408,81 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="flex-1 overflow-y-auto px-4 py-3.5">
+        {session.error && (
+          <p className="mb-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-warn">
+            {session.error}
+          </p>
+        )}
 
-      {booking ? (
-        <div className="rounded-lg border border-[var(--ok)] bg-surface-2 p-4">
-          <p className="text-xs font-medium tracking-wide text-ok uppercase">Booking confirmed</p>
-          <p className="mt-2 text-lg font-medium">
-            {booking.item} ×{booking.quantity}
-          </p>
-          <p className="font-mono text-sm text-text-muted">
-            {booking.startDate} → {booking.endDate}
-          </p>
-          {booking.remaining !== null && (
-            <p className="mt-2 text-sm text-text-muted">
-              {booking.remaining} left for those dates
+        {booking ? (
+          <div className="rounded-lg border border-[var(--ok)] bg-surface-2 p-3.5">
+            <p className="text-xs font-medium tracking-wide text-ok uppercase">Booking confirmed</p>
+            <p className="mt-1.5 font-medium">
+              {booking.item} ×{booking.quantity}
             </p>
-          )}
-          <p className="mt-3 font-mono text-[11px] text-text-muted">
-            Reference {booking.reference.slice(0, 8)}
-          </p>
-        </div>
-      ) : request ? (
-        <div className="rounded-lg border border-border bg-surface-2 p-4">
-          <p className="text-xs font-medium tracking-wide text-text-muted uppercase">
-            Current request
-          </p>
-          <p className="mt-2 text-lg font-medium">
-            {request.item ?? 'Which item?'}
-            {request.quantity ? ` ×${request.quantity}` : ''}
-          </p>
-          <p className="font-mono text-sm text-text-muted">
-            {request.startDate && request.endDate
-              ? `${request.startDate} → ${request.endDate}`
-              : 'Which dates?'}
-          </p>
-          <p className="mt-3 text-sm">
-            {request.status === 'available' && (
-              <span className="text-ok">
-                Available — {request.available} of {request.totalStock} free. Awaiting your
-                confirmation.
-              </span>
+            <p className="font-mono text-sm text-text-muted">
+              {booking.startDate} → {booking.endDate}
+            </p>
+            {booking.remaining !== null && (
+              <p className="mt-1.5 text-sm text-text-muted">
+                {booking.remaining} left for those dates
+              </p>
             )}
-            {request.status === 'unavailable' && (
-              <span className="text-warn">
-                Not available — only {request.available} of {request.totalStock} free.
-              </span>
-            )}
-            {request.status === 'needs_clarification' && (
-              <span className="text-text-muted">The agent needs a little more detail.</span>
-            )}
+            <p className="mt-2 font-mono text-[11px] text-text-muted">
+              Reference {booking.reference.slice(0, 8)}
+            </p>
+          </div>
+        ) : request ? (
+          <div className="rounded-lg border border-border bg-surface-2 p-3.5">
+            <p className="text-xs font-medium tracking-wide text-text-muted uppercase">
+              Current request
+            </p>
+            <p className="mt-1.5 font-medium">
+              {request.item ?? 'Which item?'}
+              {request.quantity ? ` ×${request.quantity}` : ''}
+            </p>
+            <p className="font-mono text-sm text-text-muted">
+              {request.startDate && request.endDate
+                ? `${request.startDate} → ${request.endDate}`
+                : 'Which dates?'}
+            </p>
+            <p className="mt-2 text-sm">
+              {request.status === 'available' && (
+                <span className="text-ok">
+                  Available — {request.available} of {request.totalStock} free. Awaiting your
+                  confirmation.
+                </span>
+              )}
+              {request.status === 'unavailable' && (
+                <span className="text-warn">
+                  Not available — only {request.available} of {request.totalStock} free.
+                </span>
+              )}
+              {request.status === 'needs_clarification' && (
+                <span className="text-text-muted">The agent needs a little more detail.</span>
+              )}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-text-muted">
+            Say what you need and when. For example: &ldquo;
+            {exampleUtterance(CATALOG[0].name)}&rdquo;
           </p>
-        </div>
-      ) : (
-        <p className="text-sm text-text-muted">
-          Say what you need and when. For example: &ldquo;{exampleUtterance(CATALOG[0].name)}&rdquo;
-        </p>
-      )}
+        )}
 
-      {earlier.length > 0 && (
-        <ul className="mt-3 space-y-1 border-t border-border pt-3">
-          {earlier.map((made) => (
-            <li key={made.reference} className="text-xs text-text-muted">
-              <span className="text-ok">✓</span> {made.item} ×{made.quantity}{' '}
-              <span className="font-mono">
-                {made.startDate} → {made.endDate}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+        {earlier.length > 0 && (
+          <ul className="mt-3 space-y-1 border-t border-border pt-3">
+            {earlier.map((made) => (
+              <li key={made.reference} className="text-xs text-text-muted">
+                <span className="text-ok">✓</span> {made.item} ×{made.quantity}{' '}
+                <span className="font-mono">
+                  {made.startDate} → {made.endDate}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {transcript.length > 0 && (
           <div className="mt-4 space-y-2 border-t border-border pt-4">
@@ -433,7 +493,6 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
           </div>
         )}
       </div>
-
     </div>
   )
 }
