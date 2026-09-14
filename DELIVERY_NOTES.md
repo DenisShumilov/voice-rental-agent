@@ -209,6 +209,15 @@ result to be spoken landed on top of it and the API refused outright. Replies
 are now queued, and a queued reply is dropped on a barge-in because it answers
 a request the customer has just changed. My own optimisation opened this one.
 
+**Every measured figure in these documents went stale, twice.** They were
+transcribed by hand, so a document claimed 11.5 minutes and $0.0328 per minute
+while the database already held 13.6 and $0.0361 — another conversation had
+been recorded since. Copied numbers drift, and a submission whose argument is
+that it measures rather than guesses cannot afford figures that quietly go out
+of date. `npm run report` now regenerates them from the same function the
+reviewer page calls, so the page and the documents cannot disagree and a stale
+figure is one command from being current.
+
 **Three latency-measurement bugs, described above.** Worth separating from the
 rest: building the voice agent was easier than measuring it honestly. Three
 iterations went not into features but into making the number mean what the
@@ -234,36 +243,34 @@ booking right, and it needed an adversarial pass to finish the job.
 
 ## Measured speed
 
-54 turns across five conversations, silence window 500 ms.
+<!-- figures:latency -->
+Measured on 2026-09-14 across 9 recorded conversations,
+silence window 500 ms. All figures in milliseconds.
 
 | Measure | n | min | median | p95 | max |
 |---|---|---|---|---|---|
-| Turn end → any audio begins | 54 | 805 | **1186 ms** | 2476 | 3441 |
-| Turn end → actually audible | 53 | 988 | **1351 ms** | 2839 | 3603 |
-| Turn end → the answer itself | 30 | 805 | **1414 ms** | 4865 | 5124 |
-| Any audio, not following an interruption | 37 | 805 | 1170 | 3313 | 3441 |
+| Turn end → any audio begins | 69 | 805 | **1170** | 2181 | 3441 |
+| Turn end → actually audible | 68 | 988 | **1345** | 2813 | 3603 |
+| Turn end → the answer itself | 45 | 805 | **1204** | 4265 | 5124 |
+| Any audio, excluding turns after an interruption | 42 | 805 | **1102** | 2476 | 3441 |
 
-### Where the time actually goes
+Split by whether the turn had to consult the database, which is where the
+time actually goes:
 
-This is the finding worth the measurement.
+| Turn type | n | min | median | p95 | max |
+|---|---|---|---|---|---|
+| No database lookup — the answer | 34 | 805 | **1102** | 1773 | 1908 |
+| Lookup — the acknowledgement | 35 | 875 | **1219** | 3313 | 3441 |
+| Lookup — the answer | 11 | 2969 | **4001** | 5124 | 5124 |
 
-| Turn type | n | min | median | max |
-|---|---|---|---|---|
-| No database lookup — the answer | 21 | 805 | **1108 ms** | 1908 |
-| Lookup — the acknowledgement | 33 | 875 | **1219 ms** | 3441 |
-| Lookup — the answer | 9 | 3180 | **4001 ms** | 5124 |
+A turn that consults the database takes **3.6× longer** to reach its
+answer, because the model makes two passes: one to call the tool, one to speak
+the result. The agent acknowledges before looking up, which removes the silence
+without making the answer arrive sooner — both rows are here so that cannot be
+read as a speed-up.
 
-A turn that has to consult the database takes **3.6× longer** to reach its
-actual answer, because the model makes two passes: one to call the tool, one to
-speak the result. Nothing about the database is slow — the query is a few
-milliseconds. The cost is the second pass through the model.
-
-The agent now says a short acknowledgement before looking up. That lands at
-1219 ms — indistinguishable from a normal answer — so the silence disappears.
-It does not make the answer arrive sooner, and both rows are reported precisely
-so that improvement cannot be read as a speed-up. Measuring only
-time-to-first-audio after adding an acknowledgement would have been gaming the
-metric.
+69 turns recorded, 42 of them not following an interruption. 1 audible reading(s) dropped as impossible — the onset detector caught the previous answer still playing out after a barge-in. The answer time is not measurable on 23 turn(s) recorded before the client counted lookups correctly. A sample this size supports a median, not a promise.
+<!-- /figures:latency -->
 
 **How the timestamps were taken.** The turn-end mark is the arrival of
 `input_audio_buffer.speech_stopped` on the WebRTC data channel, taken with
@@ -296,31 +303,30 @@ needing one sits above. On 54 turns, one machine, one network.
 
 ## Measured cost
 
-From the token counts the API returns with each response — not an estimate of
-how long anyone spoke. 96 responses across 11.5 minutes of conversation.
+<!-- figures:cost -->
+Measured on 2026-09-14 from the token counts the API returned with each
+response — 121 responses across 13.6 minutes of conversation.
 
 | Component | Tokens | USD | Share |
 |---|---|---|---|
-| Speech generation (audio out) | 10,918 | $0.2184 | 58% |
-| Input transcription | — | $0.0515 | 14% |
-| Audio input | 4,929 | $0.0493 | 13% |
-| Reasoning + text out | 9,764 | $0.0234 | 6% |
-| Text in (uncached) | 28,033 | $0.0168 | 4% |
-| Text in (cached) | 170,496 | $0.0102 | 3% |
-| Audio input (cached) | 18,944 | $0.0057 | 2% |
-| **Total** | | **$0.3754** | |
-| **Per minute** | | **$0.0328** | |
+| Speech generation (audio out) | 14,678 | $0.2936 | 60% |
+| Input transcription | — | $0.0611 | 12% |
+| Audio input | 6,711 | $0.0671 | 14% |
+| Reasoning + text out | 12,035 | $0.0289 | 6% |
+| Text in (uncached) | 37,545 | $0.0225 | 5% |
+| Text in (cached) | 187,968 | $0.0113 | 2% |
+| Audio input (cached) | 19,584 | $0.0059 | 1% |
+| **Total** | | **$0.4903** | |
+| **Per minute** | | **$0.0361** | |
 
-Every row is charged and the seven sum to the total. Cached tokens are a subset
-of the input counts, billed at the cached rate and subtracted from the uncached
-row rather than added on top.
+All seven rows are charged and sum to the total. Cached tokens are a subset of
+the input counts, billed at the cached rate rather than added on top.
 
-**Per-session cost ranged $0.0283 to $0.0369 per minute** across the five
-conversations. There is no visible relationship with session length: the
-shortest (0.7 min) came out at $0.0296 and the longest (3.8 min) at $0.0369.
-An earlier draft of this document claimed the per-minute cost falls as a
-conversation lengthens. It does not — that was a pattern read off two data
-points before there were five, and the recomputation is in the table above.
+Audio in and out together are 75% of the bill, so shortening what the agent
+says is worth more than any prompt optimisation. 83% of text input was
+served from cache; at the uncached rate those tokens would have cost
+$0.1128 instead of $0.0113.
+<!-- /figures:cost -->
 
 **Retries: none occurred.** A failed tool call returns a spoken apology rather
 than retrying, so retry cost in the measured run is zero. A retry would cost one

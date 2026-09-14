@@ -91,6 +91,7 @@ Open `http://localhost:3000`, allow the microphone, press **Start talking**.
 | `npm test` | 60 unit and integration tests |
 | `npm run doctor` | checks that changeable values live in exactly one file |
 | `npm run check` | typecheck + tests + doctor — the gate before anything is "done" |
+| `npm run report` | regenerates the measured figures in this file and the delivery notes from the recorded conversations |
 
 The database is a local SQLite file at `data/rental.db`. Deleting it is
 harmless; `npm run reset-db` recreates it.
@@ -248,54 +249,69 @@ the interruption count per conversation.
 Measured, not promised. Both come from recorded conversations; `/review` shows
 the live figures.
 
-**Latency**, 54 turns across five conversations, silence window 500 ms:
+**Latency.** Regenerated from the recorded conversations by `npm run report`,
+never transcribed by hand.
 
-| Measure | n | min | median | p95 |
-|---|---|---|---|---|
-| Turn end → any audio begins | 54 | 805 | **1186 ms** | 2476 |
-| Turn end → actually audible | 53 | 988 | **1351 ms** | 2839 |
-| Turn end → the answer itself | 30 | 805 | **1414 ms** | 4865 |
+<!-- figures:latency -->
+Measured on 2026-09-14 across 9 recorded conversations,
+silence window 500 ms. All figures in milliseconds.
+
+| Measure | n | min | median | p95 | max |
+|---|---|---|---|---|---|
+| Turn end → any audio begins | 69 | 805 | **1170** | 2181 | 3441 |
+| Turn end → actually audible | 68 | 988 | **1345** | 2813 | 3603 |
+| Turn end → the answer itself | 45 | 805 | **1204** | 4265 | 5124 |
+| Any audio, excluding turns after an interruption | 42 | 805 | **1102** | 2476 | 3441 |
+
+Split by whether the turn had to consult the database, which is where the
+time actually goes:
+
+| Turn type | n | min | median | p95 | max |
+|---|---|---|---|---|---|
+| No database lookup — the answer | 34 | 805 | **1102** | 1773 | 1908 |
+| Lookup — the acknowledgement | 35 | 875 | **1219** | 3313 | 3441 |
+| Lookup — the answer | 11 | 2969 | **4001** | 5124 | 5124 |
+
+A turn that consults the database takes **3.6× longer** to reach its
+answer, because the model makes two passes: one to call the tool, one to speak
+the result. The agent acknowledges before looking up, which removes the silence
+without making the answer arrive sooner — both rows are here so that cannot be
+read as a speed-up.
+
+69 turns recorded, 42 of them not following an interruption. 1 audible reading(s) dropped as impossible — the onset detector caught the previous answer still playing out after a barge-in. The answer time is not measurable on 23 turn(s) recorded before the client counted lookups correctly. A sample this size supports a median, not a promise.
+<!-- /figures:latency -->
 
 Server VAD reports the turn as ended only after hearing a full silence window,
 so that window is *added back* to reach "end of the customer's turn", not
 subtracted from it. The audible figure adds the browser's reported output-device
 latency.
 
-Splitting by whether the turn had to consult the database is where the number
-becomes useful:
+**Cost.**
 
-| Turn type | n | median |
-|---|---|---|
-| No database lookup — the answer | 21 | **1108 ms** |
-| Lookup — the acknowledgement | 33 | **1219 ms** |
-| Lookup — the answer | 9 | **4001 ms** |
-
-A lookup turn costs the model two passes — one to call the tool, one to speak
-the result — so its answer takes 3.6× longer. The agent says a short
-acknowledgement before looking up, which removes the silence without making the
-answer any sooner; both rows are reported so that cannot be read as a speed-up.
-
-**Cost**, from the token counts the API returns with each response — 96
-responses over 11.5 minutes:
+<!-- figures:cost -->
+Measured on 2026-09-14 from the token counts the API returned with each
+response — 121 responses across 13.6 minutes of conversation.
 
 | Component | Tokens | USD | Share |
 |---|---|---|---|
-| Audio out (speech generation) | 10,918 | $0.2184 | 58% |
-| Input transcription | — | $0.0515 | 14% |
-| Audio in | 4,929 | $0.0493 | 13% |
-| Text out, incl. reasoning | 9,764 | $0.0234 | 6% |
-| Text in | 28,033 | $0.0168 | 4% |
-| Text in (cached) | 170,496 | $0.0102 | 3% |
-| Audio in (cached) | 18,944 | $0.0057 | 2% |
-| **Total** | | **$0.3754** | |
-| **Per minute** | | **$0.0328** | |
+| Speech generation (audio out) | 14,678 | $0.2936 | 60% |
+| Input transcription | — | $0.0611 | 12% |
+| Audio input | 6,711 | $0.0671 | 14% |
+| Reasoning + text out | 12,035 | $0.0289 | 6% |
+| Text in (uncached) | 37,545 | $0.0225 | 5% |
+| Text in (cached) | 187,968 | $0.0113 | 2% |
+| Audio input (cached) | 19,584 | $0.0059 | 1% |
+| **Total** | | **$0.4903** | |
+| **Per minute** | | **$0.0361** | |
 
-All seven rows are charged and sum to the total; cached tokens are a subset of
+All seven rows are charged and sum to the total. Cached tokens are a subset of
 the input counts, billed at the cached rate rather than added on top.
 
-Per-session cost ranged $0.0283 to $0.0369 per minute across the five
-conversations, with no visible relationship to session length. 86% of text input
-tokens were served from cache, which took roughly a fifth off the total bill.
+Audio in and out together are 75% of the bill, so shortening what the agent
+says is worth more than any prompt optimisation. 83% of text input was
+served from cache; at the uncached rate those tokens would have cost
+$0.1128 instead of $0.0113.
+<!-- /figures:cost -->
 
 Prices are in `src/config/pricing.ts`, each with the page it was read from.
 Hosting is reported separately in [`DELIVERY_NOTES.md`](./DELIVERY_NOTES.md).
