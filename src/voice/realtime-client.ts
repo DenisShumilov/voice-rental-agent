@@ -21,10 +21,22 @@ export type LatencySample = {
   detectedToAudioMs: number
   /** Client learns the turn ended → first frame loud enough to hear. */
   detectedToAudibleMs: number | null
-  /** The brief's measure: customer stops speaking → answer begins. */
+  /** The brief's measure: customer stops speaking → any audio begins. */
   turnEndToAudioMs: number
   /** The brief's measure, to the first genuinely audible frame. */
   turnEndToAudibleMs: number | null
+  /**
+   * Customer stops speaking → the audio that carries the actual answer begins.
+   *
+   * On a turn that needs a database lookup, the agent now says something like
+   * "let me check" first, so `turnEndToAudioMs` becomes the time to that
+   * acknowledgement. Reporting only that number would be gaming the metric: the
+   * silence is gone, but the answer is not one millisecond earlier. This is the
+   * figure that did not improve, kept so both can be reported side by side.
+   */
+  turnEndToAnswerMs: number | null
+  /** How many database lookups this turn needed. Zero means answer == audio. */
+  toolCalls: number
   /** The silence window added back, recorded so the figures stay auditable. */
   vadSilenceMs: number
   /**
@@ -43,6 +55,9 @@ type PendingTurn = {
   assistantWasSpeaking: boolean
   rawMs: number | null
   audibleMs: number | null
+  answerMs: number | null
+  toolCalls: number
+  awaitingAnswer: boolean
   finalizeTimer: ReturnType<typeof setTimeout> | null
 }
 
@@ -72,6 +87,11 @@ const AUDIBLE_CONFIRM_FRAMES = 2
  * channel reports audio, which is always earlier than anything is hearable.
  */
 const AUDIBLE_GRACE_MS = 900
+/**
+ * How long to keep a turn open waiting for the answer that follows a database
+ * lookup, before giving up and reporting the turn without one.
+ */
+const ANSWER_TIMEOUT_MS = 8000
 
 const SDP_URL = 'https://api.openai.com/v1/realtime/calls'
 
@@ -253,6 +273,9 @@ export class RealtimeVoiceClient {
           assistantWasSpeaking: this.followsInterruption || this.assistantSpeaking,
           rawMs: null,
           audibleMs: null,
+          answerMs: null,
+          toolCalls: 0,
+          awaitingAnswer: false,
           finalizeTimer: null,
         }
         this.followsInterruption = false
@@ -321,6 +344,8 @@ export class RealtimeVoiceClient {
     const calls = (response?.output ?? []).filter((item) => item.type === 'function_call')
     if (calls.length === 0) return
 
+    if (this.pending) this.pending.toolCalls += calls.length
+
     for (const call of calls) {
       const name = String(call.name ?? '')
       const callId = String(call.call_id ?? '')
@@ -344,7 +369,16 @@ export class RealtimeVoiceClient {
       })
     }
 
-    // The tool results are in the conversation; ask for the spoken reply.
+    // The tool results are in the conversation; ask for the spoken reply. From
+    // here the next audio is the answer itself, not the acknowledgement.
+    if (this.pending) {
+      this.pending.awaitingAnswer = true
+      if (this.pending.finalizeTimer !== null) clearTimeout(this.pending.finalizeTimer)
+      this.pending.finalizeTimer = setTimeout(
+        () => this.finalisePending(),
+        ANSWER_TIMEOUT_MS,
+      )
+    }
     this.send({ type: 'response.create' })
   }
 
@@ -370,14 +404,30 @@ export class RealtimeVoiceClient {
     }
   }
 
-  /** First audio for this turn. Holds the sample open so the audible check,
-   *  which by definition resolves later, still has somewhere to land. */
+  /**
+   * Audio started for this turn. The sample is held open rather than closed
+   * here: the audible check resolves later by definition, and on a turn with a
+   * database lookup the first audio is only the acknowledgement — the answer
+   * itself is still to come.
+   */
   private markFirstAudio(at: number): void {
     const pending = this.pending
-    if (!pending || pending.rawMs !== null) return
+    if (!pending) return
 
-    pending.rawMs = Math.round(at - pending.startedAt)
-    pending.finalizeTimer = setTimeout(() => this.finalisePending(), AUDIBLE_GRACE_MS)
+    if (pending.rawMs === null) {
+      pending.rawMs = Math.round(at - pending.startedAt)
+    }
+
+    if (pending.awaitingAnswer && pending.answerMs === null) {
+      pending.answerMs = Math.round(at - pending.startedAt)
+      this.finalisePending()
+      return
+    }
+
+    // A turn with no lookup is finished as soon as the audible check lands.
+    if (pending.toolCalls === 0 && pending.finalizeTimer === null) {
+      pending.finalizeTimer = setTimeout(() => this.finalisePending(), AUDIBLE_GRACE_MS)
+    }
   }
 
   private finalisePending(): void {
@@ -397,6 +447,15 @@ export class RealtimeVoiceClient {
       turnEndToAudioMs: pending.rawMs + this.vadSilenceMs,
       turnEndToAudibleMs:
         pending.audibleMs === null ? null : pending.audibleMs + this.vadSilenceMs,
+      // With no lookup there is no acknowledgement, so the first audio already
+      // is the answer.
+      turnEndToAnswerMs:
+        pending.toolCalls === 0
+          ? pending.rawMs + this.vadSilenceMs
+          : pending.answerMs === null
+            ? null
+            : pending.answerMs + this.vadSilenceMs,
+      toolCalls: pending.toolCalls,
       vadSilenceMs: this.vadSilenceMs,
       clean: !pending.bargedIn && !pending.assistantWasSpeaking,
     }

@@ -9,8 +9,11 @@ export type CatalogItem = {
   name: string
   subtitle: string
   specs: string
+  /** Day rate. Within the range real gear-rental houses charge for this class. */
   pricePerDay: number
   totalStock: number
+  /** Optional photo URL. Falls back to a typographic tile when absent. */
+  image?: string
   /** Lowercase phrases a customer might say for this item. */
   aliases: string[]
 }
@@ -22,7 +25,7 @@ export const CATALOG: CatalogItem[] = [
     name: 'Camera A',
     subtitle: 'Full-frame mirrorless',
     specs: '4K60 · dual card slots · IBIS',
-    pricePerDay: 45,
+    pricePerDay: 75,
     totalStock: 2,
     aliases: ['camera a', 'cam a', 'camera', 'mirrorless', 'body'],
   },
@@ -32,7 +35,7 @@ export const CATALOG: CatalogItem[] = [
     name: 'Tripod B',
     subtitle: 'Carbon fibre tripod',
     specs: '1.6 m · fluid ball head · 12 kg load',
-    pricePerDay: 18,
+    pricePerDay: 35,
     totalStock: 3,
     aliases: ['tripod b', 'tripod', 'stand', 'legs'],
   },
@@ -42,7 +45,7 @@ export const CATALOG: CatalogItem[] = [
     name: 'Microphone C',
     subtitle: 'Shotgun condenser',
     specs: 'XLR + 3.5 mm · supercardioid',
-    pricePerDay: 28,
+    pricePerDay: 30,
     totalStock: 1,
     aliases: ['microphone c', 'mic c', 'microphone', 'mic', 'shotgun'],
   },

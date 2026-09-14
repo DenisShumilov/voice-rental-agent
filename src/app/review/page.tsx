@@ -48,8 +48,14 @@ type Summary = {
     supersededSamples: number
     totalTurns: number
     uninterruptedTurns: number
-    allTurns: { turnEndToAudio: Stats | null; turnEndToAudible: Stats | null }
+    allTurns: {
+      turnEndToAudio: Stats | null
+      turnEndToAudible: Stats | null
+      turnEndToAnswer: Stats | null
+    }
     uninterrupted: { turnEndToAudio: Stats | null; turnEndToAudible: Stats | null }
+    withLookup: { turns: number; turnEndToAudio: Stats | null; turnEndToAnswer: Stats | null }
+    withoutLookup: { turns: number; turnEndToAudio: Stats | null }
     samples: Array<Record<string, unknown>>
   }
   cost: {
@@ -200,11 +206,42 @@ export default function ReviewPage() {
                     ...(summary.latency.allTurns.turnEndToAudible
                       ? [statsRow('Turn end → actually audible (ms)', summary.latency.allTurns.turnEndToAudible)]
                       : []),
+                    ...(summary.latency.allTurns.turnEndToAnswer
+                      ? [statsRow('Turn end → the answer itself (ms)', summary.latency.allTurns.turnEndToAnswer)]
+                      : []),
                     ...(summary.latency.uninterrupted.turnEndToAudio
                       ? [statsRow('— of those, not after an interruption', summary.latency.uninterrupted.turnEndToAudio)]
                       : []),
                   ]}
                 />
+
+                {summary.latency.withLookup.turns > 0 && (
+                  <>
+                    <p className="mt-5 mb-2 text-sm font-medium">
+                      Where the time actually goes
+                    </p>
+                    <Table
+                      head={['Turn type', 'n', 'min', 'median', 'p95', 'max']}
+                      rows={[
+                        ...(summary.latency.withoutLookup.turnEndToAudio
+                          ? [statsRow(`No database lookup — answer`, summary.latency.withoutLookup.turnEndToAudio)]
+                          : []),
+                        ...(summary.latency.withLookup.turnEndToAudio
+                          ? [statsRow(`Lookup — acknowledgement`, summary.latency.withLookup.turnEndToAudio)]
+                          : []),
+                        ...(summary.latency.withLookup.turnEndToAnswer
+                          ? [statsRow(`Lookup — the answer`, summary.latency.withLookup.turnEndToAnswer)]
+                          : []),
+                      ]}
+                    />
+                    <p className="mt-2 text-xs text-text-muted">
+                      A turn needing a lookup costs the model two passes: one to call the tool,
+                      one to speak the result. The agent now acknowledges before looking up, which
+                      removes the silence — it does not make the answer arrive sooner. Both rows
+                      are here so the acknowledgement cannot be read as a speed-up.
+                    </p>
+                  </>
+                )}
                 <p className="mt-2 text-xs text-text-muted">
                   {summary.latency.totalTurns} recorded turns, of which{' '}
                   {summary.latency.uninterruptedTurns} did not follow the customer talking over the

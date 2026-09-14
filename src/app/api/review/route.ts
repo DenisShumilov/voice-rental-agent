@@ -105,6 +105,11 @@ export async function GET() {
   )
   const superseded = allSamples.length - current.length
   const uninterrupted = current.filter((sample) => !sample.followedInterruption)
+  const withLookup = current.filter((sample) => Number(sample.toolCalls ?? 0) > 0)
+  const withoutLookup = current.filter((sample) => Number(sample.toolCalls ?? 0) === 0)
+
+  const numbers = (samples: ClassifiedSample[], field: string): number[] =>
+    samples.map((sample) => sample[field]).filter((v): v is number => typeof v === 'number')
 
   const voiceMinutes = sessions
     .filter((session) => (session.counts.usage ?? 0) > 0)
@@ -134,6 +139,8 @@ export async function GET() {
           'From the moment the customer stopped speaking to the moment the server began sending audio. Server VAD only reports the turn as ended after a full silence window, so that window is added back rather than subtracted.',
         turnEndToAudibleMs:
           'The same, measured to the first frame loud enough to hear, plus the output device latency reported by the browser.',
+        turnEndToAnswerMs:
+          'To the audio carrying the actual answer. On a turn that needs a database lookup the agent now says "let me check" first, so the figure above becomes the time to that acknowledgement. This one is what did not improve, and both are reported so the acknowledgement cannot be mistaken for a speed-up.',
         followedInterruption:
           'The turn was spoken over the agent. The measurement is still valid — it is how fast the agent recovers — but it is reported separately, because interrupting changes what is being timed.',
         vadSilenceMs: AGENT_CONFIG.turnDetection.silence_duration_ms,
@@ -143,19 +150,24 @@ export async function GET() {
       uninterruptedTurns: uninterrupted.length,
       allTurns: {
         turnEndToAudio: summarise(current.map((s) => Number(s.turnEndToAudioMs))),
-        turnEndToAudible: summarise(
-          current
-            .map((s) => s.turnEndToAudibleMs)
-            .filter((value): value is number => typeof value === 'number'),
-        ),
+        turnEndToAudible: summarise(numbers(current, 'turnEndToAudibleMs')),
+        turnEndToAnswer: summarise(numbers(current, 'turnEndToAnswerMs')),
       },
       uninterrupted: {
         turnEndToAudio: summarise(uninterrupted.map((s) => Number(s.turnEndToAudioMs))),
-        turnEndToAudible: summarise(
-          uninterrupted
-            .map((s) => s.turnEndToAudibleMs)
-            .filter((value): value is number => typeof value === 'number'),
-        ),
+        turnEndToAudible: summarise(numbers(uninterrupted, 'turnEndToAudibleMs')),
+        turnEndToAnswer: summarise(numbers(uninterrupted, 'turnEndToAnswerMs')),
+      },
+      // Split by whether the turn had to consult the database. This is where
+      // the acknowledgement changes things, and where it does not.
+      withLookup: {
+        turns: withLookup.length,
+        turnEndToAudio: summarise(withLookup.map((s) => Number(s.turnEndToAudioMs))),
+        turnEndToAnswer: summarise(numbers(withLookup, 'turnEndToAnswerMs')),
+      },
+      withoutLookup: {
+        turns: withoutLookup.length,
+        turnEndToAudio: summarise(withoutLookup.map((s) => Number(s.turnEndToAudioMs))),
       },
       samples: current,
     },
