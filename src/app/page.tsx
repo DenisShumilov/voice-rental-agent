@@ -72,22 +72,18 @@ export default function StorefrontPage() {
         </a>
       </header>
 
-      <div className="grid gap-8 py-10 lg:grid-cols-[1fr_360px] lg:gap-10">
-        <div>
+      {/* On a narrow screen the panel comes second, before the shelf: the thing
+          you are meant to do should not sit below the catalogue. On a wide one
+          it moves to the right and stays with you as the shelf scrolls. */}
+      <div className="flex flex-col gap-8 py-10 lg:grid lg:grid-cols-[1fr_360px] lg:items-start lg:gap-10">
+        <div className="order-1">
           <h1 className="text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl">
             {BRAND.headline}
           </h1>
           <p className="mt-4 max-w-lg text-base text-text-muted">{BRAND.subheadline}</p>
 
-          <button
-            type="button"
-            onClick={session.isLive ? session.stop : session.start}
-            className="mt-7 inline-flex items-center gap-2.5 rounded-xl bg-accent px-6 py-3.5 text-base font-medium text-accent-fg transition hover:opacity-90"
-          >
-            <MicIcon />
-            {session.isLive ? BRAND.stopCta : BRAND.startCta}
-          </button>
-
+          {/* The control lives on the panel, beside the orb it drives. A second
+              identical button here would be two ways to do one thing. */}
           <ul className="mt-7 grid gap-2 border-t border-border pt-5 text-sm text-text-muted sm:grid-cols-3">
             {TRUST_FACTS.map((fact) => (
               <li key={fact}>{fact}</li>
@@ -100,7 +96,14 @@ export default function StorefrontPage() {
             </p>
           )}
 
-          <div className="mt-10 flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2.5">
+        </div>
+
+        <aside className="order-2 lg:order-none lg:sticky lg:top-8 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+          <VoicePanel session={session} />
+        </aside>
+
+        <div className="order-3 lg:col-start-1 lg:row-start-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2.5">
             <h2 className="text-sm font-medium tracking-wide text-text-muted uppercase">
               {BRAND.shelfHeading}
             </h2>
@@ -122,10 +125,6 @@ export default function StorefrontPage() {
             ))}
           </div>
         </div>
-
-        <aside className="lg:sticky lg:top-8 lg:self-start">
-          <VoicePanel session={session} />
-        </aside>
       </div>
     </main>
   )
@@ -255,20 +254,24 @@ function VoiceOrb({
     : 'color-mix(in srgb, var(--accent) 38%, var(--surface-2))'
 
   return (
-    <div className="relative flex h-28 items-center justify-center" aria-hidden="true">
+    <div className="relative flex h-28 items-center justify-center">
       <span
         ref={halo}
+        aria-hidden="true"
         className="absolute h-20 w-20 rounded-full blur-2xl will-change-transform"
         style={{ background: colour, opacity: 0.2 }}
       />
       <span
         ref={core}
-        className="relative h-[68px] w-[68px] rounded-full transition-colors duration-500 will-change-transform"
+        aria-hidden="true"
+        className="relative flex h-[68px] w-[68px] items-center justify-center rounded-full transition-colors duration-500 will-change-transform"
         style={{
           background: `radial-gradient(circle at 34% 28%, color-mix(in srgb, ${colour} 40%, white), ${colour} 70%, color-mix(in srgb, ${colour} 75%, black))`,
           boxShadow: `0 10px 30px -10px ${colour}`,
         }}
-      />
+      >
+        {!live && <span className="text-accent-fg/80"><MicIcon /></span>}
+      </span>
     </div>
   )
 }
@@ -318,8 +321,37 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
             {lastLatency.turnEndToAnswerMs ?? lastLatency.turnEndToAudioMs} ms
           </span>
         )}
-        <VoiceOrb levelRef={session.levelRef} state={state} />
+        {/* The orb is the control, not a picture of one: that is where the eye
+            already is, and every voice product makes it clickable. */}
+        <button
+          type="button"
+          onClick={session.isLive ? session.stop : session.start}
+          aria-label={session.isLive ? BRAND.stopCta : BRAND.startCta}
+          className="w-full cursor-pointer rounded-xl transition hover:opacity-90"
+        >
+          <VoiceOrb levelRef={session.levelRef} state={state} />
+        </button>
+
         <p className="mt-1 text-center text-sm font-medium">{VOICE_STATE_COPY[state]}</p>
+
+        <button
+          type="button"
+          onClick={session.isLive ? session.stop : session.start}
+          className={`mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+            session.isLive
+              ? 'border border-border text-text-muted hover:bg-surface-2'
+              : 'bg-accent text-accent-fg hover:opacity-90'
+          }`}
+        >
+          {session.isLive ? (
+            BRAND.stopCta
+          ) : (
+            <>
+              <MicIcon />
+              {BRAND.startCta}
+            </>
+          )}
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -402,23 +434,6 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
         )}
       </div>
 
-      <div className="border-t border-border px-5 py-3.5">
-        {session.isLive ? (
-          <button
-            type="button"
-            onClick={session.stop}
-            className="w-full rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-text-muted transition hover:bg-surface-2"
-          >
-            {BRAND.stopCta}
-          </button>
-        ) : (
-          // No second microphone button: the hero already owns that action, and
-          // two identical buttons side by side read as a mistake.
-          <p className="text-center text-xs text-text-muted">
-            Press <span className="font-medium text-text">{BRAND.startCta}</span> to begin
-          </p>
-        )}
-      </div>
     </div>
   )
 }
