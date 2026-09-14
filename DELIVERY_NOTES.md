@@ -2,22 +2,39 @@
 
 ## Time spent
 
-Roughly **7 focused hours**, against an 8-hour target.
+**1 hour 47 minutes of elapsed wall-clock time**, of which roughly 20 minutes
+was an enforced pause on my AI tooling. So about **1 hour 25 minutes of actual
+work**, against an eight-hour ceiling.
 
-| Block | Time |
+Measured, not estimated: first session artefact 19:08, first commit 20:54, on
+2026-09-14. The commit timestamps in the repository are the record.
+
+| Phase | Clock |
 |---|---|
-| Reading the brief, architecture, verifying provider facts | 1h 00 |
-| Database, catalogue, per-day availability | 0h 35 |
-| Draft versioning, confirmation tokens, idempotent booking | 0h 40 |
-| Tool layer, validation, the six scenarios as shared code | 1h 10 |
-| Voice: ephemeral tokens, WebRTC, tool loop, barge-in, instrumentation | 1h 00 |
-| Reviewer page, cost model, metrics | 0h 55 |
-| Measurement runs and three rounds of fixing the instrumentation | 0h 40 |
-| Documentation | 0h 45 |
+| Reading the brief, architecture, verifying provider facts against live docs | 19:08 – 19:36 |
+| Scaffold, database, catalogue, per-day availability | 19:36 – 19:38 |
+| Draft versioning, confirmation tokens, idempotent booking | 19:38 – 19:42 |
+| Tool layer, validation, the six scenarios as shared code | 19:42 – 19:46 |
+| Adversarial review of the invariants, and fixing what it found | 19:46 – 20:00 |
+| *(paused — AI usage limit)* | 20:00 – 20:20 |
+| Voice: ephemeral tokens, WebRTC, tool loop, barge-in, instrumentation | 20:22 – 20:30 |
+| Measurement runs, three rounds of fixing the instrumentation, reviewer page | 20:30 – 20:45 |
+| Documentation, repository | 20:45 – 20:55 |
+
+This is far under the ceiling because the work was AI-assisted throughout: I
+directed the architecture and the verification strategy, and the code was
+generated. The eight hours is a limit, not a quota, and I would rather report
+ninety honest minutes than pad them.
+
+**A correction worth recording.** An earlier draft of this file claimed seven
+hours. That figure was not measured — I had estimated how long each block
+*would* take a person and written the estimate down as fact. It was wrong by a
+factor of five, and the repository's own timestamps would have exposed it. It is
+noted here because a delivery note that gets its own headline number from
+intuition has no standing to report latency and cost.
 
 Unfinished, and deliberately so: the storefront was left at "clean and legible"
-rather than polished, because the brief weights correctness and evidence at 80%
-and I would rather spend the last hour on the reviewer page than on the hero.
+rather than polished, because the brief weights correctness and evidence at 80%.
 
 ---
 

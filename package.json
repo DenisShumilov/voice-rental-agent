@@ -6,10 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "reset-db": "tsx scripts/reset-db.ts",
+    "reset-db": "node --env-file-if-exists=.env --import tsx scripts/reset-db.ts",
     "test": "vitest run",
-    "doctor": "tsx scripts/doctor.ts",
-    "check": "tsc --noEmit && vitest run && tsx scripts/doctor.ts"
+    "doctor": "node --import tsx scripts/doctor.ts",
+    "check": "tsc --noEmit && vitest run && npm run doctor"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
