@@ -7,7 +7,7 @@
 // And everything shown about availability comes from a tool result or a server
 // lookup — never from the model's own words.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { BRAND, TRUST_FACTS, VOICE_STATE_COPY, exampleUtterance } from '@/config/brand'
 import { CATALOG } from '@/config/catalog'
@@ -183,6 +183,13 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
   // answer, not how fast the agent replies.
   const lastLatency = latency.filter((sample) => sample.clean).at(-1)
 
+  // The transcript grows while the customer is talking, not scrolling. Without
+  // this the newest line is the one they cannot see.
+  const transcriptEnd = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    transcriptEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [transcript.length])
+
   return (
     <div className="rounded-[var(--radius)] border border-border bg-surface p-5">
       <div className="flex items-center gap-2.5 border-b border-border pb-3">
@@ -264,6 +271,7 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
               {entry.text}
             </p>
           ))}
+          <div ref={transcriptEnd} />
         </div>
       )}
     </div>

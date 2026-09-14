@@ -3,6 +3,8 @@
 // Invariant: this is the ONLY place item names and stock levels appear.
 // Adding an item or changing stock is a one-line edit here, then `npm run reset-db`.
 
+/** Product photos: Unsplash, whose licence permits commercial use without
+ *  attribution. Each was opened and checked before being used. */
 export type CatalogItem = {
   id: string
   sku: string
@@ -23,10 +25,11 @@ export const CATALOG: CatalogItem[] = [
     id: 'camera_a',
     sku: 'CAM-A',
     name: 'Camera A',
-    subtitle: 'Full-frame mirrorless',
-    specs: '4K60 · dual card slots · IBIS',
+    subtitle: 'Digital SLR body',
+    specs: '24 MP · 1080p60 · EF mount',
     pricePerDay: 75,
     totalStock: 2,
+    image: 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800&h=600&fit=crop&q=75&auto=format',
     aliases: ['camera a', 'cam a', 'camera', 'mirrorless', 'body'],
   },
   {
@@ -37,16 +40,18 @@ export const CATALOG: CatalogItem[] = [
     specs: '1.6 m · fluid ball head · 12 kg load',
     pricePerDay: 35,
     totalStock: 3,
+    image: 'https://images.unsplash.com/photo-1594147216879-97803adfb44d?w=800&h=600&fit=crop&q=75&auto=format',
     aliases: ['tripod b', 'tripod', 'stand', 'legs'],
   },
   {
     id: 'mic_c',
     sku: 'MIC-C',
     name: 'Microphone C',
-    subtitle: 'Shotgun condenser',
-    specs: 'XLR + 3.5 mm · supercardioid',
+    subtitle: 'Handheld condenser',
+    specs: 'XLR · supercardioid · windshield',
     pricePerDay: 30,
     totalStock: 1,
+    image: 'https://images.unsplash.com/photo-1521424159246-e4a66f267e4b?w=800&h=600&fit=crop&q=75&auto=format',
     aliases: ['microphone c', 'mic c', 'microphone', 'mic', 'shotgun'],
   },
 ]
