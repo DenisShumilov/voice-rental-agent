@@ -7,6 +7,7 @@
 // And everything shown about availability comes from a tool result or a server
 // lookup — never from the model's own words.
 
+import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 
 import { BRAND, TRUST_FACTS, VOICE_STATE_COPY, exampleUtterance } from '@/config/brand'
@@ -140,12 +141,16 @@ function ProductCard({ item, hasDates }: { item: ShelfItem; hasDates: boolean })
     <article className="flex flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface">
       <div className="relative aspect-[4/3] bg-surface-2">
         {item.image && !imageFailed ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          // next/image rather than a plain tag: the source photographs are
+          // around 1.5 MB each, and this serves a resized, modern-format
+          // version sized to the card instead.
+          <Image
             src={item.image}
             alt={item.subtitle}
+            fill
+            sizes="(min-width: 640px) 33vw, 100vw"
             onError={() => setImageFailed(true)}
-            className="h-full w-full object-cover"
+            className="object-cover"
           />
         ) : (
           <span className="absolute inset-0 flex items-center justify-center font-mono text-2xl tracking-[0.2em] text-text-muted/40">

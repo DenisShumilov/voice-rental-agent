@@ -31,7 +31,7 @@ export const CATALOG: CatalogItem[] = [
     specs: '24 MP · 1080p60 · EF mount',
     pricePerDay: 75,
     totalStock: 2,
-    image: '/camera-a.jpg',
+    image: '/camera-a.png',
     aliases: ['camera a', 'cam a', 'camera', 'mirrorless', 'body'],
   },
   {
@@ -42,7 +42,7 @@ export const CATALOG: CatalogItem[] = [
     specs: '1.6 m · fluid ball head · 12 kg load',
     pricePerDay: 35,
     totalStock: 3,
-    image: '/tripod-b.jpg',
+    image: '/tripod-b.png',
     aliases: ['tripod b', 'tripod', 'stand', 'legs'],
   },
   {
@@ -53,7 +53,7 @@ export const CATALOG: CatalogItem[] = [
     specs: 'XLR · supercardioid · windshield',
     pricePerDay: 30,
     totalStock: 1,
-    image: '/microphone-c.jpg',
+    image: '/microphone-c.png',
     aliases: ['microphone c', 'mic c', 'microphone', 'mic', 'shotgun'],
   },
 ]
