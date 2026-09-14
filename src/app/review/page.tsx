@@ -120,7 +120,7 @@ export default function ReviewPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-5 py-8 lg:px-8">
+    <main className="mx-auto w-full max-w-5xl px-5 py-8 lg:px-8">
       <header className="flex items-baseline justify-between border-b border-border pb-5">
         <span className="text-lg font-semibold tracking-tight">{COPY.name}</span>
         <a href="/" className="text-sm text-text-muted underline-offset-4 hover:underline">
@@ -150,7 +150,14 @@ export default function ReviewPage() {
         {run && (
           <p className={`mt-3 text-sm ${run.passed ? 'text-ok' : 'text-warn'}`}>
             {run.passed ? 'All checks passed' : 'Some checks failed'} ·{' '}
-            <span className="font-mono text-xs text-text-muted">{run.ranAt}</span>
+            <span className="font-mono text-xs text-text-muted">{run.ranAt}</span> ·{' '}
+            <button
+              type="button"
+              onClick={() => setRun(null)}
+              className="text-text-muted underline-offset-4 hover:underline"
+            >
+              Hide results
+            </button>
           </p>
         )}
 

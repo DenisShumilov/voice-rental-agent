@@ -70,7 +70,7 @@ export default function StorefrontPage() {
 
   return (
     <>
-      <main className="mx-auto max-w-5xl px-5 py-8 lg:px-8">
+      <main className="mx-auto w-full max-w-5xl px-5 py-8 lg:px-8">
         <header className="flex items-baseline justify-between border-b border-border pb-5">
           <span className="text-lg font-semibold tracking-tight">{COPY.name}</span>
           <a href="/review" className="text-sm text-text-muted underline-offset-4 hover:underline">
