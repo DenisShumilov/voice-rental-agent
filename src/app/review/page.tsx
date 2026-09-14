@@ -75,7 +75,7 @@ type Summary = {
       ifRunCommercially: Array<{ item: string; usdPerMonth: number; note: string }>
     }
   }
-  events: Array<{ sessionId: string; ts: string; type: string; payload: unknown }>
+  checks: { total: number }
 }
 
 export default function ReviewPage() {
@@ -129,7 +129,11 @@ export default function ReviewPage() {
         </p>
       </header>
 
-      {summary && <Headline summary={summary} />}
+      {summary && <Headline summary={summary} run={run} />}
+
+      {!summary && !error && (
+        <p className="mt-5 text-sm text-text-muted">Reading the recorded evidence…</p>
+      )}
 
       {error && (
         <p className="mt-5 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-warn">
@@ -359,7 +363,7 @@ export default function ReviewPage() {
       </Section>
 
       <Section title="Conversations">
-        {summary && summary.sessions.length > 0 ? (
+        {!summary ? null : summary.sessions.length > 0 ? (
           <Table
             head={['Session', 'Started', 'Minutes', 'Turns', 'Tool calls', 'Interruptions', 'Bookings']}
             rows={summary.sessions.map((session) => [
@@ -381,13 +385,19 @@ export default function ReviewPage() {
 }
 
 /** The four numbers a reviewer came for, before any prose. */
-function Headline({ summary }: { summary: Summary }) {
+function Headline({ summary, run }: { summary: Summary; run: RunResponse | null }) {
   const answer = summary.latency.withoutLookup.turnEndToAudio
   const cost = summary.cost.breakdown
   const bookings = summary.database.reservations.filter((row) => row.source === 'voice').length
 
   const figures = [
-    { value: '6 / 6', label: 'required checks pass', note: 'run them below' },
+    {
+      value: run
+        ? `${run.results.filter((result) => result.passed).length} / ${run.results.length}`
+        : `— / ${summary.checks.total}`,
+      label: run ? 'required checks passed' : 'required checks',
+      note: run ? `run at ${run.ranAt}` : 'not run yet — press Run all checks',
+    },
     {
       value: answer ? `${answer.median} ms` : '—',
       label: 'turn end → answer',

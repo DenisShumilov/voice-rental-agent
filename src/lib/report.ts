@@ -14,6 +14,7 @@ import { listReservations } from './booking'
 import { calculateCost, type RealtimeUsage } from './cost'
 import { getDb } from './db'
 import { summarise } from './metrics'
+import { SCENARIOS } from './scenarios'
 
 type EventRow = {
   session_id: string
@@ -226,11 +227,6 @@ export async function buildReport() {
       pricing: PRICING,
       hosting: HOSTING,
     },
-    events: eventRows.map((row) => ({
-      sessionId: row.session_id,
-      ts: row.ts,
-      type: row.type,
-      payload: JSON.parse(row.payload) as unknown,
-    })),
+    checks: { total: SCENARIOS.length },
   }
 }

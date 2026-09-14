@@ -8,6 +8,9 @@ export const BRAND = {
     'Three items, one conversation. Tell the agent what you need and when — it checks the calendar while you talk.',
   startCta: 'Start talking',
   stopCta: 'End conversation',
+  // Shown before the first turn: on laptop speakers the agent hears itself and
+  // interrupts its own answer, which reads as a bug rather than as barge-in.
+  micHint: 'Headphones recommended — you can interrupt at any time.',
   reassurance: 'No card required · Cancel any time before pickup',
   shelfHeading: 'On the shelf',
 } as const

@@ -406,6 +406,10 @@ function VoiceWidget({
             </>
           )}
         </button>
+
+        {transcript.length === 0 && (
+          <p className="mt-2 text-center text-xs text-text-muted">{BRAND.micHint}</p>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3.5">
