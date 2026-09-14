@@ -607,7 +607,7 @@ function HostingTable({ hosting }: { hosting: Summary['cost']['hosting'] }) {
         head={['Service', 'USD / month', 'Note']}
         rows={[
           ...hosting.current.map((row) => [row.item, usd(row.usdPerMonth), row.note]),
-          ['Current total', usd(total(hosting.current)), ''],
+          ['What we pay', usd(total(hosting.current)), ''],
           ...hosting.atListPrice.map((row) => [row.item, usd(row.usdPerMonth), row.note]),
           ['List price of those same tiers', usd(total(hosting.atListPrice)), ''],
         ]}
