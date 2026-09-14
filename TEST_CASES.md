@@ -233,7 +233,7 @@ sentence over the customer; the interruption is recorded; whatever it was about
 to confirm is not saved.
 
 **Actual, 2026-09-14:** verified by ear across five conversations. Fifteen
-interruptions were recorded and the agent stopped each time. `/review` shows the
+interruptions across 54 turns were recorded and the agent stopped each time. `/review` shows the
 count per conversation.
 
 Two honest notes:

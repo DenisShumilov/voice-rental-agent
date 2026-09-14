@@ -111,9 +111,17 @@ export class RealtimeVoiceClient {
         void this.record('latency', sample)
       })
 
-      this.microphone = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      })
+      try {
+        this.microphone = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        })
+      } catch {
+        // The browser's own message here is a bare error name. A customer who
+        // just dismissed a permission prompt needs to know what to do next.
+        throw new Error(
+          'No microphone. Allow microphone access for this page in your browser, then press Start talking again.',
+        )
+      }
 
       const connection = new RTCPeerConnection()
       this.connection = connection

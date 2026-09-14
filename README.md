@@ -26,6 +26,8 @@ Open:          /         the storefront
 |---|---|
 | Storefront | https://voice-rental-agent.vercel.app |
 | Reviewer view | https://voice-rental-agent.vercel.app/review |
+| Walkthrough video | _added with the submission_ |
+| Repository | `DenisShumilov/voice-rental-agent` — private; access granted to the reviewer on submission |
 
 Press **Run all checks** on the reviewer view to re-run the six required
 scenarios against a scratch in-memory database. It reports expected vs actual
@@ -71,7 +73,7 @@ baked in, so the browser cannot widen what the agent may do.
 
 ## Quick start (local)
 
-Requires Node 20+.
+Requires Node 22 or newer (the scripts use `--env-file-if-exists`). Built and tested on Node 24.
 
 ```bash
 npm install
@@ -104,7 +106,15 @@ harmless; `npm run reset-db` recreates it.
 | `MIC-C` | Microphone C | 1 |
 
 One reservation is seeded: **Camera A ×1, 10–12 October 2026 inclusive**. So on
-those three days only one of the two Camera A units is free.
+those three days only one of the two Camera A units is free. A local
+`npm run reset-db` returns to exactly that state.
+
+The live demo has moved on from it: the recorded conversations left real
+bookings behind, including a second Camera A on 10–12 October, so that date now
+shows nothing free. Those rows are the evidence behind the latency and cost
+figures below and are deliberately not cleared. To see the seeded state,
+press **Run all checks** on `/review` — every scenario reports the database
+before and after, starting from a clean seed each time.
 
 ---
 
@@ -268,17 +278,24 @@ answer any sooner; both rows are reported so that cannot be read as a speed-up.
 **Cost**, from the token counts the API returns with each response — 96
 responses over 11.5 minutes:
 
-| Component | USD | Share |
-|---|---|---|
-| Audio out | $0.2184 | 58% |
-| Input transcription | $0.0515 | 14% |
-| Audio in | $0.0493 | 13% |
-| Text in + out + cached | $0.0459 | 12% |
-| **Total** | **$0.3754** | |
-| **Per minute** | **$0.0328** | |
+| Component | Tokens | USD | Share |
+|---|---|---|---|
+| Audio out (speech generation) | 10,918 | $0.2184 | 58% |
+| Input transcription | — | $0.0515 | 14% |
+| Audio in | 4,929 | $0.0493 | 13% |
+| Text out, incl. reasoning | 9,764 | $0.0234 | 6% |
+| Text in | 28,033 | $0.0168 | 4% |
+| Text in (cached) | 170,496 | $0.0102 | 3% |
+| Audio in (cached) | 18,944 | $0.0057 | 2% |
+| **Total** | | **$0.3754** | |
+| **Per minute** | | **$0.0328** | |
 
-Per-minute cost falls as a conversation lengthens ($0.0435 → $0.0328 across the
-runs), so this figure should not be extrapolated to short interactions.
+All seven rows are charged and sum to the total; cached tokens are a subset of
+the input counts, billed at the cached rate rather than added on top.
+
+Per-session cost ranged $0.0283 to $0.0369 per minute across the five
+conversations, with no visible relationship to session length. 86% of text input
+tokens were served from cache, which took roughly a fifth off the total bill.
 
 Prices are in `src/config/pricing.ts`, each with the page it was read from.
 Hosting is reported separately in [`DELIVERY_NOTES.md`](./DELIVERY_NOTES.md).

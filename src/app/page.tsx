@@ -178,7 +178,11 @@ function ProductCard({ item, hasDates }: { item: ShelfItem; hasDates: boolean })
 }
 
 function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }) {
-  const { state, request, booking, transcript, latency } = session
+  const { state, request, bookings, transcript, latency } = session
+  // A request in progress takes the card; a booking made earlier in the same
+  // conversation moves to the list below rather than disappearing.
+  const booking = request === null ? (bookings.at(-1) ?? null) : null
+  const earlier = request === null ? bookings.slice(0, -1) : bookings
   // Only uninterrupted turns are shown: a barged-in turn times a cancelled
   // answer, not how fast the agent replies.
   const lastLatency = latency.filter((sample) => sample.clean).at(-1)
@@ -259,6 +263,19 @@ function VoicePanel({ session }: { session: ReturnType<typeof useVoiceSession> }
         <p className="mt-4 text-sm text-text-muted">
           Say what you need and when. For example: &ldquo;{exampleUtterance(CATALOG[0].name)}&rdquo;
         </p>
+      )}
+
+      {earlier.length > 0 && (
+        <ul className="mt-3 space-y-1 border-t border-border pt-3">
+          {earlier.map((made) => (
+            <li key={made.reference} className="text-xs text-text-muted">
+              <span className="text-ok">✓</span> {made.item} ×{made.quantity}{' '}
+              <span className="font-mono">
+                {made.startDate} → {made.endDate}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
 
       {transcript.length > 0 && (

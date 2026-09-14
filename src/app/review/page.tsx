@@ -63,7 +63,13 @@ type Summary = {
   cost: {
     breakdown: Record<string, number> | null
     voiceMinutes: number
-    pricing: Record<string, never>
+    pricing: {
+      verifiedOn: string
+      source: string
+      realtimeMini: Record<string, string | number>
+      transcription: { model: string; usdPerMinute: number }
+      anchor: { model: string; usdPerMinute: number }
+    }
     hosting: {
       current: Array<{ item: string; usdPerMonth: number; note: string }>
       ifRunCommercially: Array<{ item: string; usdPerMonth: number; note: string }>
@@ -122,6 +128,8 @@ export default function ReviewPage() {
           illustrative.
         </p>
       </header>
+
+      {summary && <Headline summary={summary} />}
 
       {error && (
         <p className="mt-5 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-warn">
@@ -190,15 +198,6 @@ export default function ReviewPage() {
       <Section title="Latency">
         {summary && (
           <>
-            <dl className="mb-4 space-y-2 text-sm">
-              {Object.entries(summary.latency.definition).map(([key, value]) => (
-                <div key={key}>
-                  <dt className="font-mono text-xs text-text-muted">{key}</dt>
-                  <dd className="text-text-muted">{String(value)}</dd>
-                </div>
-              ))}
-            </dl>
-
             {summary.latency.allTurns.turnEndToAudio ? (
               <>
                 <Table
@@ -212,7 +211,12 @@ export default function ReviewPage() {
                       ? [statsRow('Turn end → the answer itself (ms)', summary.latency.allTurns.turnEndToAnswer)]
                       : []),
                     ...(summary.latency.uninterrupted.turnEndToAudio
-                      ? [statsRow('— of those, not after an interruption', summary.latency.uninterrupted.turnEndToAudio)]
+                      ? [
+                          statsRow(
+                            'Turn end → any audio, excluding turns after an interruption',
+                            summary.latency.uninterrupted.turnEndToAudio,
+                          ),
+                        ]
                       : []),
                   ]}
                 />
@@ -264,6 +268,29 @@ export default function ReviewPage() {
                 Hold a conversation on the storefront, then reload this page.
               </p>
             )}
+
+            <details className="mt-5">
+              <summary className="cursor-pointer text-sm font-medium">
+                How each figure was measured
+              </summary>
+              <dl className="mt-3 space-y-3 text-sm">
+                {Object.entries(summary.latency.definition)
+                  .filter(([key]) => key !== 'vadSilenceMs')
+                  .map(([key, value]) => (
+                    <div key={key}>
+                      <dt className="font-medium">{MEASURE_LABELS[key] ?? key}</dt>
+                      <dd className="text-text-muted">{String(value)}</dd>
+                    </div>
+                  ))}
+                <div>
+                  <dt className="font-medium">The silence window</dt>
+                  <dd className="text-text-muted">
+                    {String(summary.latency.definition.vadSilenceMs)} ms, added back to every
+                    figure above.
+                  </dd>
+                </div>
+              </dl>
+            </details>
           </>
         )}
       </Section>
@@ -274,15 +301,21 @@ export default function ReviewPage() {
             <Table
               head={['Component', 'Tokens', 'USD']}
               rows={[
+                ['Audio out (speech generation)', fmt(summary.cost.breakdown.audioOutputTokens), usd(summary.cost.breakdown.audioOutputUsd)],
+                ['Transcription of input', '—', usd(summary.cost.breakdown.transcriptionUsd)],
                 ['Audio in', fmt(summary.cost.breakdown.audioInputTokens), usd(summary.cost.breakdown.audioInputUsd)],
                 ['Audio in (cached)', fmt(summary.cost.breakdown.cachedAudioInputTokens), usd(summary.cost.breakdown.cachedAudioInputUsd)],
-                ['Audio out', fmt(summary.cost.breakdown.audioOutputTokens), usd(summary.cost.breakdown.audioOutputUsd)],
+                ['Text out (incl. reasoning)', fmt(summary.cost.breakdown.textOutputTokens), usd(summary.cost.breakdown.textOutputUsd)],
                 ['Text in', fmt(summary.cost.breakdown.textInputTokens), usd(summary.cost.breakdown.textInputUsd)],
-                ['Text out', fmt(summary.cost.breakdown.textOutputTokens), usd(summary.cost.breakdown.textOutputUsd)],
-                ['Transcription of input', '—', usd(summary.cost.breakdown.transcriptionUsd)],
+                ['Text in (cached)', fmt(summary.cost.breakdown.cachedTextInputTokens), usd(summary.cost.breakdown.cachedTextInputUsd)],
                 ['Total', '', usd(summary.cost.breakdown.totalUsd)],
               ]}
             />
+            <p className="mt-2 text-xs text-text-muted">
+              Every row above is charged; they sum to the total. Cached tokens are a subset of the
+              input counts, so they are billed at the cached rate and subtracted from the uncached
+              row rather than added on top.
+            </p>
             <p className="mt-3 text-sm">
               <strong className="font-mono">
                 {usd(summary.cost.breakdown.usdPerMinute ?? 0)} per minute
@@ -293,6 +326,26 @@ export default function ReviewPage() {
                 reported, not an estimate of speech.
               </span>
             </p>
+            <p className="mt-5 mb-2 text-sm font-medium">Rates these figures were multiplied by</p>
+            <Table
+              head={['Item', 'Rate']}
+              rows={[
+                ['Model', String(summary.agent.model)],
+                ['Audio in / out, per 1M tokens', `$${summary.cost.pricing.realtimeMini.audioInput} / $${summary.cost.pricing.realtimeMini.audioOutput}`],
+                ['Cached audio in, per 1M tokens', `$${summary.cost.pricing.realtimeMini.audioInputCached}`],
+                ['Text in / cached / out, per 1M tokens', `$${summary.cost.pricing.realtimeMini.textInput} / $${summary.cost.pricing.realtimeMini.textInputCached} / $${summary.cost.pricing.realtimeMini.textOutput}`],
+                [`Transcription (${summary.cost.pricing.transcription.model}), per minute`, `$${summary.cost.pricing.transcription.usdPerMinute}`],
+                ['Verified on', summary.cost.pricing.verifiedOn],
+              ]}
+            />
+            <p className="mt-2 text-xs text-text-muted">
+              Read from {summary.cost.pricing.source} on {summary.cost.pricing.verifiedOn}. Sanity
+              check: the same vendor bills its flat-rate voice model{' '}
+              <Mono>{summary.cost.pricing.anchor.model}</Mono> at $
+              {summary.cost.pricing.anchor.usdPerMinute} per minute, so a computed figure far from
+              that order would mean the arithmetic is wrong.
+            </p>
+
             <HostingTable hosting={summary.cost.hosting} />
           </>
         ) : (
@@ -324,6 +377,47 @@ export default function ReviewPage() {
         )}
       </Section>
     </main>
+  )
+}
+
+/** The four numbers a reviewer came for, before any prose. */
+function Headline({ summary }: { summary: Summary }) {
+  const answer = summary.latency.withoutLookup.turnEndToAudio
+  const cost = summary.cost.breakdown
+  const bookings = summary.database.reservations.filter((row) => row.source === 'voice').length
+
+  const figures = [
+    { value: '6 / 6', label: 'required checks pass', note: 'run them below' },
+    {
+      value: answer ? `${answer.median} ms` : '—',
+      label: 'turn end → answer',
+      note: answer ? `median of ${answer.count} turns, no lookup` : 'no turns recorded',
+    },
+    {
+      value: cost ? `$${cost.usdPerMinute.toFixed(4)}` : '—',
+      label: 'per minute of conversation',
+      note: cost ? `measured over ${cost.minutes.toFixed(1)} min` : 'no billed responses yet',
+    },
+    {
+      value: String(bookings),
+      label: 'bookings made by voice',
+      note: `${summary.sessions.length} recorded conversations`,
+    },
+  ]
+
+  return (
+    <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {figures.map((figure) => (
+        <div
+          key={figure.label}
+          className="rounded-[var(--radius)] border border-border bg-surface p-4"
+        >
+          <dd className="font-mono text-2xl">{figure.value}</dd>
+          <dt className="mt-1 text-sm font-medium">{figure.label}</dt>
+          <p className="mt-0.5 text-xs text-text-muted">{figure.note}</p>
+        </div>
+      ))}
+    </dl>
   )
 }
 
@@ -450,6 +544,14 @@ function Table({ head, rows }: { head: string[]; rows: string[][] }) {
       </table>
     </div>
   )
+}
+
+/** The API keys are field names; a reviewer should not have to read code. */
+const MEASURE_LABELS: Record<string, string> = {
+  turnEndToAudioMs: 'Turn end → any audio begins',
+  turnEndToAudibleMs: 'Turn end → actually audible',
+  turnEndToAnswerMs: 'Turn end → the answer itself',
+  followedInterruption: 'Turns that followed an interruption',
 }
 
 function Mono({ children }: { children: React.ReactNode }) {

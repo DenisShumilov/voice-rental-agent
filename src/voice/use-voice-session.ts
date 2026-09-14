@@ -38,7 +38,8 @@ export function useVoiceSession() {
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([])
   const [latency, setLatency] = useState<LatencySample[]>([])
   const [request, setRequest] = useState<RequestCard | null>(null)
-  const [booking, setBooking] = useState<BookingCard | null>(null)
+  /** Every booking made in this conversation, not just the last one. */
+  const [bookings, setBookings] = useState<BookingCard[]>([])
   const [interruptions, setInterruptions] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,7 +51,12 @@ export function useVoiceSession() {
 
     const client = new RealtimeVoiceClient(sessionId, {
       onState: setState,
-      onError: setError,
+      onError: (message) => {
+        setError(message)
+        // Without this the client object survives a failed connection and
+        // start() sees it as already running, so the button does nothing.
+        clientRef.current = null
+      },
       onBargeIn: () => setInterruptions((count) => count + 1),
       onLatency: (sample) => setLatency((samples) => [...samples, sample]),
       onTranscript: (entry) =>
@@ -71,14 +77,21 @@ export function useVoiceSession() {
         }
 
         if (result.tool === 'confirm_booking' && facts.booking_reference) {
-          setBooking({
+          const confirmed: BookingCard = {
             reference: String(facts.booking_reference),
             item: String(facts.item),
             quantity: Number(facts.quantity),
             startDate: String(facts.start_date),
             endDate: String(facts.end_date),
             remaining: asNumber(facts.remaining_for_those_dates),
-          })
+          }
+          // A repeated confirmation returns the same reference and must not
+          // appear as a second booking on screen either.
+          setBookings((made) =>
+            made.some((row) => row.reference === confirmed.reference)
+              ? made
+              : [...made, confirmed],
+          )
           setRequest(null)
         }
       },
@@ -107,7 +120,8 @@ export function useVoiceSession() {
     transcript,
     latency,
     request,
-    booking,
+    bookings,
+    booking: bookings.at(-1) ?? null,
     interruptions,
     error,
     start,

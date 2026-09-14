@@ -126,7 +126,7 @@ Three tools, and only three:
 Current: **`gpt-realtime-2.1-mini`** (audio in $10 / audio out $20 per 1M tokens).
 
 Turn detection is `server_vad` with an explicit `silence_duration_ms: 500`, so
-the silence window can be honestly subtracted from latency measurements.
+the detection delay is a known constant that can be honestly added back.
 
 ---
 
@@ -136,12 +136,14 @@ Three figures are reported, never one:
 
 | Figure | Definition |
 |---|---|
-| Raw | arrival of `input_audio_buffer.speech_stopped` → arrival of `output_audio_buffer.started` |
-| Adjusted | raw minus `silence_duration_ms`, the VAD's fixed detection window |
-| Audible | to the first non-silent frame on the remote track, plus `AudioContext.outputLatency` |
+| Turn end → any audio | arrival of `input_audio_buffer.speech_stopped` to arrival of `output_audio_buffer.started`, PLUS `silence_duration_ms` — server VAD only reports the turn ended after hearing the full window, so it is added back, never subtracted |
+| Turn end → audible | the same, to the first non-silent frame on the remote track, plus `AudioContext.outputLatency` |
+| Turn end → the answer | on a turn with a database lookup, to the audio that carries the answer rather than the acknowledgement |
 
 Never report a latency number that was not measured. Never round a measurement
-into a promise.
+into a promise. The timing logic lives in `src/voice/turn-timer.ts`, free of
+browser APIs, and is covered by replayable tests — change it there, not in the
+WebRTC client.
 
 ---
 

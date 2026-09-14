@@ -6,8 +6,11 @@
 was an enforced pause on my AI tooling. So about **2 hours 5 minutes of actual
 work**, against an eight-hour ceiling.
 
-Measured, not estimated: first session artefact 19:08, last commit 21:40, on
-2026-09-14. The commit timestamps in the repository are the record.
+Measured, not estimated, on 2026-09-14. The start is the creation time of the
+first working file, 19:08; the end is the last commit, 21:40. Note that git
+history only begins at 20:54 — the repository was initialised late — so commit
+timestamps corroborate the second half of the table and file modification times
+the first.
 
 | Phase | Clock |
 |---|---|
@@ -59,7 +62,8 @@ every judgement about which generated output to keep.
 
 ## How I checked the AI's output
 
-Four times, each catching something real.
+Five times, each catching something real. The last one was a review of the
+finished submission, and it found errors in this very document.
 
 **1. A trap test written before the implementation.** Per-day peak availability
 is the one place a language model reliably writes plausible, wrong code: it sums
@@ -115,6 +119,21 @@ I restored each of the three bugs in turn to confirm the suite catches them:
 All three would have been caught in under a second instead of across four
 manual conversations. The client delegates to this module, so the tested logic
 is the logic that runs.
+
+**6. An adversarial review of the finished submission.** Forty agents went
+through the repository and the deployed site against the brief, on five separate
+lines — requirement coverage, honesty of every stated number, what a reviewer
+sees on `/review`, what a customer sees on the storefront, and what a stranger
+makes of the repository — with each claim re-checked by an agent told to refute
+it. Twenty-six findings survived that check.
+
+The ones that mattered were in this document: the cost table was wrong in three
+connected ways, two interruption counts contradicted the recorded events, and
+the time-spent section attributed more to git history than git history can
+support. Those are recorded under "what failed" below rather than silently
+fixed. The rest were clarity problems on `/review` — raw field names used as
+headings, the headline figures buried below prose, a table row whose label
+implied it was a subset of the row above.
 
 ---
 
@@ -194,6 +213,22 @@ rest: building the voice agent was easier than measuring it honestly. Three
 iterations went not into features but into making the number mean what the
 label next to it says.
 
+**This document reported the cost wrongly, in three connected ways.** A review
+of the finished submission recomputed every figure against the live
+`/api/review` and found that the cost table omitted the cached-text row
+entirely, and that the row labelled "text in (cached)" actually carried the
+cached *audio* count. The visible rows therefore missed their own total, and a
+paragraph derived from the same mix-up concluded that caching had done little —
+when in fact 86% of text input was served from cache and it took roughly a fifth
+off the bill. A separate claim, that per-minute cost falls as a conversation
+lengthens, was a pattern read from two sessions that five sessions contradict.
+All of it is corrected above, and the corrections are noted in place rather than
+quietly swapped.
+
+The uncomfortable part is that these were the numbers arguing for the project's
+own rigour. Getting the measurement right took as much attention as getting the
+booking right, and it needed an adversarial pass to finish the job.
+
 ---
 
 ## Measured speed
@@ -270,15 +305,21 @@ how long anyone spoke. 96 responses across 11.5 minutes of conversation.
 | Audio input | 4,929 | $0.0493 | 13% |
 | Reasoning + text out | 9,764 | $0.0234 | 6% |
 | Text in (uncached) | 28,033 | $0.0168 | 4% |
-| Text in (cached) | 18,944 | $0.0057 | 2% |
+| Text in (cached) | 170,496 | $0.0102 | 3% |
+| Audio input (cached) | 18,944 | $0.0057 | 2% |
 | **Total** | | **$0.3754** | |
 | **Per minute** | | **$0.0328** | |
 
-**Per-minute cost falls as a conversation lengthens**, which is worth stating
-because it means this figure must not be extrapolated to short interactions.
-Across the runs it went $0.0435 → $0.0369 → $0.0328 per minute as sessions got
-longer, because the instructions and history move into the cache. A ten-second
-interaction would cost considerably more per minute than this.
+Every row is charged and the seven sum to the total. Cached tokens are a subset
+of the input counts, billed at the cached rate and subtracted from the uncached
+row rather than added on top.
+
+**Per-session cost ranged $0.0283 to $0.0369 per minute** across the five
+conversations. There is no visible relationship with session length: the
+shortest (0.7 min) came out at $0.0296 and the longest (3.8 min) at $0.0369.
+An earlier draft of this document claimed the per-minute cost falls as a
+conversation lengthens. It does not — that was a pattern read off two data
+points before there were five, and the recomputation is in the table above.
 
 **Retries: none occurred.** A failed tool call returns a spoken apology rather
 than retrying, so retry cost in the measured run is zero. A retry would cost one
@@ -312,11 +353,12 @@ history, the tool schemas, the reasoning — is 12% in total, cached or not.
 Shortening what the agent says is therefore worth far more than any prompt
 optimisation, and it shortens the customer's wait at the same time.
 
-Caching did less than a single run suggested. In the first conversation 45,248
-of 51,232 text input tokens were cached; across all five, 18,944 of 46,977 were.
-Text input is cheap either way, so the per-minute decline is mostly audio output
-being amortised over longer sessions rather than a cache effect. The first
-conversation alone would have supported a stronger claim than the data does.
+**Caching does a lot of quiet work.** 170,496 of 198,529 text input tokens —
+86% — were served from cache. At the uncached rate those would have cost
+$0.1023 instead of $0.0102, so caching removed about $0.09 from a $0.38 bill:
+roughly a fifth of the total. The instructions and the tool schemas are resent
+on every turn, and without caching that would be the second-largest line item
+rather than a rounding error.
 
 ### Hosting, reported separately
 
@@ -408,7 +450,7 @@ In the order I would actually do it.
    session identity a boundary rather than a convention, and would let more than
    one conversation run safely.
 
-3. **Reduce spoken output.** Audio generation is 64% of the cost. Tightening the
+3. **Reduce spoken output.** Audio generation is 58% of the cost. Tightening the
    agent's instructions toward shorter confirmations is the highest-leverage
    cost change, and it also shortens time-to-understanding for the customer.
 
