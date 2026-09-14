@@ -1,0 +1,51 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #fbfaf8;
+  --surface: #ffffff;
+  --surface-2: #f2efea;
+  --border: #e3ded6;
+  --text: #17150f;
+  --text-muted: #6b6558;
+  --accent: #b4410f;
+  --accent-fg: #ffffff;
+  --ok: #2f6b3f;
+  --warn: #a6791b;
+  --radius: 14px;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+}
+
+/* Light only. A dark theme is time without marks. */
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+.status-dot-live {
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
