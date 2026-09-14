@@ -141,6 +141,23 @@ export async function GET() {
   const answerable = current.filter(answerMeasured)
   const answerNotMeasured = current.length - answerable.length
 
+  /**
+   * Audio cannot be heard before it is sent. A sample that claims otherwise was
+   * recorded by a detector that caught the previous answer still playing out
+   * after a barge-in, so it is dropped rather than allowed to pull the median
+   * down. Counted, not hidden.
+   */
+  const audible = (samples: ClassifiedSample[]): number[] =>
+    samples
+      .filter(
+        (sample) =>
+          typeof sample.turnEndToAudibleMs === 'number' &&
+          sample.turnEndToAudibleMs >= Number(sample.turnEndToAudioMs),
+      )
+      .map((sample) => Number(sample.turnEndToAudibleMs))
+
+  const audibleDiscarded = numbers(current, 'turnEndToAudibleMs').length - audible(current).length
+
   const voiceMinutes = sessions
     .filter((session) => (session.counts.usage ?? 0) > 0)
     .reduce((total, session) => total + session.minutes, 0)
@@ -180,13 +197,14 @@ export async function GET() {
       uninterruptedTurns: uninterrupted.length,
       allTurns: {
         turnEndToAudio: summarise(current.map((s) => Number(s.turnEndToAudioMs))),
-        turnEndToAudible: summarise(numbers(current, 'turnEndToAudibleMs')),
+        turnEndToAudible: summarise(audible(current)),
         turnEndToAnswer: summarise(numbers(answerable, 'turnEndToAnswerMs')),
       },
       answerNotMeasured,
+      audibleDiscarded,
       uninterrupted: {
         turnEndToAudio: summarise(uninterrupted.map((s) => Number(s.turnEndToAudioMs))),
-        turnEndToAudible: summarise(numbers(uninterrupted, 'turnEndToAudibleMs')),
+        turnEndToAudible: summarise(audible(uninterrupted)),
         turnEndToAnswer: summarise(
           numbers(uninterrupted.filter(answerMeasured), 'turnEndToAnswerMs'),
         ),

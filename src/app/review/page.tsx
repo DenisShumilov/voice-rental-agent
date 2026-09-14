@@ -54,6 +54,7 @@ type Summary = {
       turnEndToAnswer: Stats | null
     }
     answerNotMeasured: number
+    audibleDiscarded: number
     uninterrupted: { turnEndToAudio: Stats | null; turnEndToAudible: Stats | null }
     withLookup: { turns: number; turnEndToAudio: Stats | null; turnEndToAnswer: Stats | null }
     withoutLookup: { turns: number; turnEndToAudio: Stats | null }
@@ -248,6 +249,8 @@ export default function ReviewPage() {
                   {summary.latency.uninterruptedTurns} did not follow the customer talking over the
                   agent. Interrupted turns are kept: the measurement is still real, it just answers
                   a slightly different question.
+                  {summary.latency.audibleDiscarded > 0 &&
+                    ` ${summary.latency.audibleDiscarded} audible readings are dropped as impossible: the detector caught the previous answer still playing out after a barge-in, so they claimed a turn was heard before its audio was sent.`}
                   {summary.latency.supersededSamples > 0 &&
                     ` A further ${summary.latency.supersededSamples} samples are excluded entirely — recorded before the measurement definition was corrected.`}{' '}
                   A sample this small supports a median, not a promise.
@@ -470,5 +473,9 @@ function fmt(value: number): string {
 
 function usd(value: number): string {
   if (value === 0) return '$0'
-  return value < 0.01 ? `$${value.toFixed(5)}` : `$${value.toFixed(2)}`
+  // Four decimals below a dollar: rounding fractions of a cent to two hides
+  // exactly the differences this table exists to show.
+  if (value < 0.001) return `$${value.toFixed(5)}`
+  if (value < 1) return `$${value.toFixed(4)}`
+  return `$${value.toFixed(2)}`
 }

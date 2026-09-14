@@ -535,6 +535,13 @@ export class RealtimeVoiceClient {
       const pending = this.pending
       if (!pending || pending.audibleMs !== null || !this.analyser) return
 
+      // Not before the server says it has started sending. The detector runs
+      // continuously, so without this it catches the tail of the previous
+      // answer still playing out after a barge-in and reports a turn as audible
+      // before any of its audio existed — which produced impossible figures
+      // lower than the data-channel timestamp.
+      if (pending.rawMs === null) return
+
       this.analyser.getFloatTimeDomainData(samples)
       let sumOfSquares = 0
       for (const value of samples) sumOfSquares += value * value
