@@ -15,7 +15,13 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const SCRATCH_DATABASE = 'file:./data/review-run.db'
+/**
+ * In memory, not a file: a serverless filesystem is read-only, so a scratch
+ * file would work locally and fail in production — on the one button a
+ * reviewer is most likely to press. It also means each run starts from nothing
+ * without needing cleanup.
+ */
+const SCRATCH_DATABASE = ':memory:'
 
 export async function POST() {
   const liveDatabase = process.env.DATABASE_URL
