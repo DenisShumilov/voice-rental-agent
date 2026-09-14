@@ -82,16 +82,12 @@ const AUDIBLE_RMS_THRESHOLD = 0.01
 /** Consecutive frames required, so one codec click does not count as speech. */
 const AUDIBLE_CONFIRM_FRAMES = 2
 /**
- * How long to keep listening for the first audible frame after the server says
- * it started sending. Without this the sample is emitted the moment the data
- * channel reports audio, which is always earlier than anything is hearable.
- */
-const AUDIBLE_GRACE_MS = 900
-/**
  * How long to keep a turn open waiting for the answer that follows a database
  * lookup, before giving up and reporting the turn without one.
  */
 const ANSWER_TIMEOUT_MS = 8000
+/** Closes the last turn of a conversation, which no following turn will close. */
+const TURN_BACKSTOP_MS = 20000
 
 const SDP_URL = 'https://api.openai.com/v1/realtime/calls'
 
@@ -224,6 +220,10 @@ export class RealtimeVoiceClient {
   }
 
   disconnect(): void {
+    // Report the turn in progress before tearing anything down, otherwise the
+    // last exchange of every conversation is silently lost.
+    this.finalisePending()
+
     if (this.onsetTimer !== null) cancelAnimationFrame(this.onsetTimer)
     this.onsetTimer = null
 
@@ -286,7 +286,10 @@ export class RealtimeVoiceClient {
           answerMs: null,
           toolCalls: 0,
           awaitingAnswer: false,
-          finalizeTimer: null,
+          // A backstop only. Normally the sample is closed by the next turn
+          // starting; this exists so the last turn of a conversation is still
+          // reported.
+          finalizeTimer: setTimeout(() => this.finalisePending(), TURN_BACKSTOP_MS),
         }
         this.followsInterruption = false
         this.onsetFrame = 0
@@ -365,15 +368,12 @@ export class RealtimeVoiceClient {
 
     const calls = (response?.output ?? []).filter((item) => item.type === 'function_call')
 
-    if (calls.length === 0) {
-      // This response carried the spoken reply, so the turn is over. A short
-      // grace lets the audible-onset check land before the sample is closed.
-      const pending = this.pending
-      if (pending && pending.finalizeTimer === null) {
-        pending.finalizeTimer = setTimeout(() => this.finalisePending(), AUDIBLE_GRACE_MS)
-      }
-      return
-    }
+    // A response with no tool calls is NOT reliably the end of the turn: the
+    // agent often says "let me check" as a response of its own, and the tool
+    // call arrives in the next one. Closing here was the second version of this
+    // bug — it recorded those turns as needing no lookup at all. The turn is
+    // closed when the next one begins instead.
+    if (calls.length === 0) return
 
     if (this.pending) this.pending.toolCalls += calls.length
 
