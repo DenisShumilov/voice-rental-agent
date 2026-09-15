@@ -238,6 +238,8 @@ database before and after each one.
 | `tests/scenarios.test.ts` | the six required scenarios, end to end through the tool layer |
 | `tests/turn-timer.test.ts` | replayed event sequences: barge-in, lookup turns, impossible readings |
 | `tests/transcript.test.ts` | replayed arrival orders: a transcription landing after the reply it prompted |
+| `tests/cost.test.ts` | the money arithmetic, and the caching trap that inflates a total |
+| `tests/metrics.test.ts` | median and nearest-rank p95, the statistics behind every latency figure |
 | `tests/db.test.ts` | blank environment variables |
 
 Expected results are declared in `src/lib/scenarios.ts` and in
