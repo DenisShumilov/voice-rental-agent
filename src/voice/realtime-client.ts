@@ -434,12 +434,7 @@ export class RealtimeVoiceClient {
     this.backstop = setTimeout(() => this.timer?.flush(), TURN_BACKSTOP_MS)
   }
 
-  /**
-   * Independent check on the data-channel timestamp: watches the incoming audio
-   * track and notes the first frame actually loud enough to hear, plus the
-   * output device's own delay. It answers "when did the customer hear
-   * something", a later moment than "when did the server start sending".
-   */
+  /** One AudioContext for the session; the meters and the onset watcher share it. */
   private context(): AudioContext {
     if (!this.audioContext) this.audioContext = new AudioContext()
     return this.audioContext
@@ -453,6 +448,12 @@ export class RealtimeVoiceClient {
     this.inputAnalyser = analyser
   }
 
+  /**
+   * Independent check on the data-channel timestamp: watches the incoming audio
+   * track and notes the first frame actually loud enough to hear, plus the
+   * output device's own delay. It answers "when did the customer hear
+   * something", a later moment than "when did the server start sending".
+   */
   private watchForAudioOnset(stream: MediaStream): void {
     const context = this.context()
 

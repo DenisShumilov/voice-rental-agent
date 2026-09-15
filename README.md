@@ -89,7 +89,7 @@ Open `http://localhost:3000`, allow the microphone, press **Start talking**.
 | `npm run dev` | development server |
 | `npm run reset-db` | rebuilds the database and reloads catalogue and seed. Recorded events — the latency and cost evidence — are carried across; `--wipe-events` drops those too |
 | `npm run sync-catalog` | adds or updates `items` rows from the catalogue without dropping anything. This is the command to run after editing `src/config/catalog.ts` |
-| `npm test` | 60 unit and integration tests |
+| `npm test` | the unit and integration suite |
 | `npm run doctor` | checks that changeable values live in exactly one file |
 | `npm run check` | typecheck + tests + doctor — the gate before anything is "done" |
 | `npm run report` | regenerates the measured figures in this file and the delivery notes from the recorded conversations |
@@ -168,7 +168,7 @@ nothing to confirm with:
   "tool": "set_request",
   "status": "unavailable",
   "facts": { "item": "Camera A", "quantity": 2, "available": 1, "total_stock": 2 },
-  "guidance": "Only 1 of 2 are free for those dates, so this cannot be booked. …"
+  "guidance": "Only 1 of the 2 are free across every day of those dates, so 2 cannot be booked. Say so and offer what is possible — 1 now, or different dates."
 }
 ```
 
@@ -221,7 +221,7 @@ a draft id is not a capability — confirming requires owning the conversation.
 ## Test evidence
 
 ```bash
-npm test          # 60 tests
+npm test          # the whole suite
 npm run check     # typecheck + tests + doctor
 ```
 

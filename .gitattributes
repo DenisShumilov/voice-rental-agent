@@ -1,0 +1,7 @@
+# One line ending in the repository, whatever the checkout platform does.
+# Without this, a Windows clone rewrites every file it touches and the next
+# person sees a diff of the whole tree instead of the change.
+* text=auto eol=lf
+
+# Binary, never converted.
+*.png binary

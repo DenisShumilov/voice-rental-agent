@@ -252,7 +252,11 @@ Two honest notes:
 
 ## Invariant tests underneath
 
-60 tests, run by `npm test`. The ones that matter most:
+<!-- figures:tests -->
+**92 of 92 tests pass**, across 10 files, run by `npm test`. Counted by running them, not by remembering.
+<!-- /figures:tests -->
+
+The ones that matter most:
 
 | Test | Guards against |
 |---|---|
@@ -267,6 +271,6 @@ Two honest notes:
 | `refuses a lookup span longer than the maximum rental` | one request expanding millions of days and blocking the server |
 | `falls back to the local file when DATABASE_URL is blank` | every API route returning 500 because an empty string is not undefined |
 
-The last seven exist because an adversarial review, and then a smoke test
+The last five exist because an adversarial review, and then a smoke test
 against the running server, found each of them after the suite was already
 green. Each was confirmed by removing the fix and watching the test fail.

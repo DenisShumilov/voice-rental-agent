@@ -43,3 +43,6 @@ next-env.d.ts
 
 # local database
 /data
+
+# vitest reporter output
+/.vitest/
