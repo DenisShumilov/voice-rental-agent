@@ -236,7 +236,8 @@ database before and after each one.
 | `tests/booking.test.ts` | the four gates, idempotency, cross-session refusal, clock drift |
 | `tests/tools.test.ts` | argument validation, unknown tools, unbounded spans, read-only lookups |
 | `tests/scenarios.test.ts` | the six required scenarios, end to end through the tool layer |
-| `tests/turn-timer.test.ts` | replayed event sequences: barge-in, queued replies, lookup turns, impossible readings |
+| `tests/turn-timer.test.ts` | replayed event sequences: barge-in, lookup turns, impossible readings |
+| `tests/transcript.test.ts` | replayed arrival orders: a transcription landing after the reply it prompted |
 | `tests/db.test.ts` | blank environment variables |
 
 Expected results are declared in `src/lib/scenarios.ts` and in

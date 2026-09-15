@@ -143,7 +143,9 @@ Three figures are reported, never one:
 Never report a latency number that was not measured. Never round a measurement
 into a promise. The timing logic lives in `src/voice/turn-timer.ts`, free of
 browser APIs, and is covered by replayable tests — change it there, not in the
-WebRTC client.
+WebRTC client. The same rule applies to `src/voice/transcript.ts`: anything
+whose correctness depends on the order two async pipelines happen to arrive in
+belongs in a pure module with a replay test, not inside the client.
 
 ---
 

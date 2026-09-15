@@ -307,6 +307,10 @@ function VoiceOrb({
 
 function Bubble({ entry }: { entry: { role: 'user' | 'assistant'; text: string } }) {
   const fromCustomer = entry.role === 'user'
+  // The slot is reserved the moment the customer stops speaking; the words
+  // arrive on a slower pipeline. Until they do, the bubble says it is listening
+  // rather than leaving the turn invisible.
+  const waiting = fromCustomer && entry.text.length === 0
   return (
     <div className={`flex ${fromCustomer ? 'justify-end' : 'justify-start'}`}>
       <p
@@ -316,7 +320,7 @@ function Bubble({ entry }: { entry: { role: 'user' | 'assistant'; text: string }
             : 'rounded-bl-sm bg-surface-2 text-text'
         }`}
       >
-        {entry.text}
+        {waiting ? <span className="opacity-60">…</span> : entry.text}
       </p>
     </div>
   )
@@ -507,8 +511,8 @@ function VoiceWidget({
 
         {transcript.length > 0 && (
           <div className="mt-4 space-y-2 border-t border-border pt-4">
-            {transcript.map((entry, index) => (
-              <Bubble key={index} entry={entry} />
+            {transcript.map((entry) => (
+              <Bubble key={entry.id} entry={entry} />
             ))}
             <div ref={transcriptEnd} />
           </div>

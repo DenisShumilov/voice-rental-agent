@@ -13,6 +13,7 @@ import {
   type TranscriptEntry,
   type VoiceState,
 } from './realtime-client'
+import { mergeTranscript } from './transcript'
 
 export type RequestCard = {
   item: string | null
@@ -69,8 +70,7 @@ export function useVoiceSession() {
       },
       onBargeIn: () => setInterruptions((count) => count + 1),
       onLatency: (sample) => setLatency((samples) => [...samples, sample]),
-      onTranscript: (entry) =>
-        setTranscript((entries) => [...entries, entry].slice(-40)),
+      onTranscript: (entry) => setTranscript((entries) => mergeTranscript(entries, entry)),
       onToolResult: (result) => {
         const facts = result.facts ?? {}
 

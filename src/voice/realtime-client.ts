@@ -13,6 +13,13 @@ export type { LatencySample }
 export type VoiceState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking'
 
 export type TranscriptEntry = {
+  /**
+   * Stable across the two events that make up one customer turn. The slot is
+   * reserved the moment they stop speaking and filled when the transcription
+   * arrives — which is a separate, slower pipeline than the agent's reply, so
+   * appending on arrival put the answer above the question that prompted it.
+   */
+  id: string
   role: 'user' | 'assistant'
   text: string
   at: number
@@ -114,6 +121,10 @@ export class RealtimeVoiceClient {
    * with one already running — which the API refuses. Asking is queued.
    */
   private responseActive = false
+  /** Counts turns heard and turns spoken, so every transcript entry has an id. */
+  private turnsHeard = 0
+  private agentTurns = 0
+  private pendingUserTurn: string | null = null
   private responseQueued = false
 
   constructor(sessionId: string, callbacks: VoiceCallbacks = {}) {
@@ -250,6 +261,16 @@ export class RealtimeVoiceClient {
         this.onsetFrame = 0
         this.armBackstop()
         this.setState('thinking')
+        // Reserve the customer's place in the transcript now, while the order
+        // is still certain. An empty entry renders as "…", which also answers
+        // "did it hear me?" before the words come back.
+        this.pendingUserTurn = `user-${(this.turnsHeard += 1)}`
+        this.callbacks.onTranscript?.({
+          id: this.pendingUserTurn,
+          role: 'user',
+          text: '',
+          at: Date.now(),
+        })
         return
 
       case 'output_audio_buffer.started':
@@ -286,12 +307,32 @@ export class RealtimeVoiceClient {
     // Transcript events have been renamed more than once across API versions.
     // Matching on shape rather than an exact name keeps the on-screen
     // transcript working without pinning it to today's spelling.
-    if (typeof event.transcript === 'string' && type.endsWith('.done')) {
-      const role = type.includes('input_audio_transcription') ? 'user' : 'assistant'
-      this.callbacks.onTranscript?.({ role, text: event.transcript, at: Date.now() })
-    } else if (typeof event.transcript === 'string' && type.endsWith('.completed')) {
-      this.callbacks.onTranscript?.({ role: 'user', text: event.transcript, at: Date.now() })
-    }
+    if (typeof event.transcript !== 'string') return
+    if (!type.endsWith('.done') && !type.endsWith('.completed')) return
+
+    const role =
+      type.endsWith('.completed') || type.includes('input_audio_transcription')
+        ? 'user'
+        : 'assistant'
+
+    this.callbacks.onTranscript?.({
+      id: role === 'user' ? this.takePendingUserTurn() : `agent-${(this.agentTurns += 1)}`,
+      role,
+      text: event.transcript,
+      at: Date.now(),
+    })
+  }
+
+  /**
+   * The slot reserved when the customer stopped speaking, if it is still
+   * waiting. A transcription with no reserved slot — the API renaming these
+   * events has happened more than once — still gets an id of its own rather
+   * than being dropped.
+   */
+  private takePendingUserTurn(): string {
+    const reserved = this.pendingUserTurn
+    this.pendingUserTurn = null
+    return reserved ?? `user-${(this.turnsHeard += 1)}`
   }
 
   private handleBargeIn(): void {
