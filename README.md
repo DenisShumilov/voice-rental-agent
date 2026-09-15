@@ -309,8 +309,10 @@ response — 124 responses across 13.8 minutes of conversation.
 | **Total** | | **$0.5006** | |
 | **Per minute** | | **$0.0362** | |
 
-All seven rows are charged and sum to the total. Cached tokens are a subset of
-the input counts, billed at the cached rate rather than added on top.
+All seven rows are charged, and the total is their exact sum — printed
+rounded to four decimals, so adding up the column can miss it by a hundredth
+of a cent. Cached tokens are a subset of the input counts, billed at the
+cached rate rather than added on top.
 
 Audio in and out together are 75% of the bill, so shortening what the agent
 says is worth more than any prompt optimisation. 83% of text input was

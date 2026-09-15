@@ -241,6 +241,15 @@ export async function buildReport() {
       pricing: PRICING,
       hosting: HOSTING,
     },
-    checks: { total: SCENARIOS.length },
+    checks: {
+      total: SCENARIOS.length,
+      // Named before anyone presses the button: the brief lists the checks it
+      // wants, and a reviewer should see them without having to run them first.
+      list: SCENARIOS.map((scenario) => ({
+        id: scenario.id,
+        title: scenario.title,
+        given: scenario.given,
+      })),
+    },
   }
 }

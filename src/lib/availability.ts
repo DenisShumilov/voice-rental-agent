@@ -43,6 +43,12 @@ export function differenceInDays(from: string, to: string): number {
 }
 
 /** True when the string is a real calendar date in YYYY-MM-DD form. */
+/** The calendar date `days` after `from`, inclusive-day arithmetic like the rest. */
+export function addDays(from: string, days: number): string {
+  assertIsoDate(from)
+  return new Date(toUtcMillis(from) + days * DAY_MS).toISOString().slice(0, 10)
+}
+
 export function isCalendarDate(value: string): boolean {
   try {
     assertIsoDate(value)

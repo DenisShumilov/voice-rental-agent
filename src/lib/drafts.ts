@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto'
 import { resolveItem, type CatalogItem } from '@/config/catalog'
 import { BOOKING_RULES } from '@/config/rules'
 import {
+  addDays,
   differenceInDays,
   getAvailability,
   isCalendarDate,
@@ -22,11 +23,42 @@ import { logEvent } from './events'
 
 export type DraftStatus = 'incomplete' | 'available' | 'unavailable' | 'confirmed'
 
+/**
+ * Every rule about a date range, in one place. `set_request` and
+ * `check_availability` both call it, so a lookup is refused for the same
+ * reason a request is — and says which reason, rather than one flat sentence
+ * covering four different mistakes.
+ *
+ * Counted arithmetically, never by materialising the range: an unbounded span
+ * has to be rejected without first allocating a day for each entry.
+ */
+/** The last start date the desk will take, from the rule rather than prose. */
+export function latestBookableStart(): string {
+  return addDays(today(), BOOKING_RULES.maxAdvanceDays)
+}
+
+export function dateReasons(startDate: string, endDate: string): ClarificationReason[] {
+  if (!isCalendarDate(startDate) || !isCalendarDate(endDate)) return ['dates']
+  if (startDate > endDate) return ['date_range']
+
+  const todayIso = today()
+  const days = differenceInDays(startDate, endDate) + 1
+
+  if (startDate < todayIso) return ['past_dates']
+  if (days < BOOKING_RULES.minRentalDays) return ['range_too_short']
+  if (days > BOOKING_RULES.maxRentalDays) return ['range_too_long']
+  if (differenceInDays(todayIso, startDate) > BOOKING_RULES.maxAdvanceDays) {
+    return ['too_far_ahead']
+  }
+  return []
+}
+
 export type ClarificationReason =
   | 'item'
   | 'quantity'
   | 'dates'
   | 'date_range'
+  | 'item_not_rented'
   | 'past_dates'
   | 'range_too_short'
   | 'range_too_long'
@@ -101,6 +133,7 @@ export async function setRequest(
   const clarificationNeeded: ClarificationReason[] = []
   let itemCandidates: CatalogItem[] = []
 
+  let itemNotRented = false
   let itemId = base?.itemId ?? null
   let quantity = base?.quantity ?? null
   let startDate = base?.startDate ?? null
@@ -116,6 +149,9 @@ export async function setRequest(
       } else {
         itemId = null
         if (resolved.kind === 'ambiguous') itemCandidates = resolved.candidates
+        // Naming something we do not rent is not the same as not naming
+        // anything, and the customer deserves to be told which it was.
+        if (resolved.kind === 'not_found') itemNotRented = true
       }
     }
   }
@@ -125,7 +161,7 @@ export async function setRequest(
   if (patch.endDate !== undefined) endDate = patch.endDate
 
   if (itemId === null) {
-    clarificationNeeded.push('item')
+    clarificationNeeded.push(itemNotRented ? 'item_not_rented' : 'item')
   } else if (quantity === null) {
     quantity = BOOKING_RULES.defaultQuantity
   }
@@ -138,23 +174,8 @@ export async function setRequest(
     clarificationNeeded.push('dates')
   } else if (!isCalendarDate(startDate) || !isCalendarDate(endDate)) {
     clarificationNeeded.push('dates')
-  } else if (startDate > endDate) {
-    clarificationNeeded.push('date_range')
   } else {
-    const todayIso = today()
-    // Counted arithmetically, not by materialising the range: an unbounded
-    // span must be rejected without first allocating a day for each entry.
-    const days = differenceInDays(startDate, endDate) + 1
-
-    if (startDate < todayIso) {
-      clarificationNeeded.push('past_dates')
-    } else if (days < BOOKING_RULES.minRentalDays) {
-      clarificationNeeded.push('range_too_short')
-    } else if (days > BOOKING_RULES.maxRentalDays) {
-      clarificationNeeded.push('range_too_long')
-    } else if (differenceInDays(todayIso, startDate) > BOOKING_RULES.maxAdvanceDays) {
-      clarificationNeeded.push('too_far_ahead')
-    }
+    clarificationNeeded.push(...dateReasons(startDate, endDate))
   }
 
   let status: DraftStatus = 'incomplete'

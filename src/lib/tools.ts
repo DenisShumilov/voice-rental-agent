@@ -7,12 +7,12 @@
 
 import { z } from 'zod'
 
-import { getItem, resolveItem } from '@/config/catalog'
+import { CATALOG, getItem, resolveItem } from '@/config/catalog'
 import { BOOKING_RULES } from '@/config/rules'
-import { differenceInDays, getAvailability, isCalendarDate } from './availability'
+import { getAvailability } from './availability'
 import { confirmBooking } from './booking'
 import { logEvent } from './events'
-import { setRequest, type ClarificationReason } from './drafts'
+import { dateReasons, latestBookableStart, setRequest, type ClarificationReason } from './drafts'
 
 export const TOOL_NAMES = ['set_request', 'confirm_booking', 'check_availability'] as const
 export type ToolName = (typeof TOOL_NAMES)[number]
@@ -128,12 +128,23 @@ async function runSetRequest(sessionId: string, rawArgs: unknown): Promise<ToolR
   }
 
   if (draft.status === 'unavailable') {
-    return {
-      tool: 'set_request',
-      status: 'unavailable',
-      facts,
-      guidance: `Only ${facts.available} of ${facts.total_stock} are free for those dates, so this cannot be booked. Say so and offer what is possible — fewer units, or different dates.`,
+    const wanted = Number(facts.quantity ?? 0)
+    const free = Number(facts.available ?? 0)
+    const stock = Number(facts.total_stock ?? 0)
+
+    // Three different refusals. "Only 2 of 2 are free" reads as a contradiction
+    // when the customer asked for five, and offering different dates is false
+    // hope when we never owned that many.
+    let guidance: string
+    if (wanted > stock) {
+      guidance = `We only ever have ${stock} of that item, so ${wanted} is more than this desk could ever rent. Say so plainly — different dates will not help — and offer at most ${stock}.`
+    } else if (free === 0) {
+      guidance = `Every one of the ${stock} is already committed on at least one day of that range. Only different dates help here; fewer units will not. Say so and ask what other days would suit.`
+    } else {
+      guidance = `Only ${free} of the ${stock} are free across every day of those dates, so ${wanted} cannot be booked. Say so and offer what is possible — ${free} now, or different dates.`
     }
+
+    return { tool: 'set_request', status: 'unavailable', facts, guidance }
   }
 
   facts.needs = clarificationNeeded
@@ -247,20 +258,21 @@ async function runCheckAvailability(rawArgs: unknown): Promise<ToolResult> {
     }
   }
 
-  // The span is bounded before it is expanded: getAvailability walks one entry
-  // per day, so an unbounded range submitted here would block the server.
-  // differenceInDays only parses the two endpoints, so rejecting costs nothing.
-  if (
-    !isCalendarDate(startDate) ||
-    !isCalendarDate(endDate) ||
-    startDate > endDate ||
-    differenceInDays(startDate, endDate) + 1 > BOOKING_RULES.maxRentalDays
-  ) {
+  // The same rules a request is held to, so "do you have a camera last week?"
+  // is refused here exactly as it would be there — and for a named reason. The
+  // span is bounded before it is expanded: getAvailability walks one entry per
+  // day, so an unbounded range would block the server, and dateReasons rejects
+  // it with arithmetic alone.
+  const dateProblems = dateReasons(startDate, endDate)
+  if (dateProblems.length > 0) {
     return {
       tool: 'check_availability',
       status: 'needs_clarification',
-      facts: { needs: ['dates'], max_rental_days: BOOKING_RULES.maxRentalDays },
-      guidance: `Ask the customer for the exact first and last day of the rental. Rentals run for at most ${BOOKING_RULES.maxRentalDays} days.`,
+      facts: {
+        needs: dateProblems,
+        max_rental_days: BOOKING_RULES.maxRentalDays,
+      },
+      guidance: clarificationGuidance(dateProblems, []),
     }
   }
 
@@ -294,6 +306,11 @@ function clarificationGuidance(
         : 'Ask which item they want.',
     )
   }
+  if (reasons.includes('item_not_rented')) {
+    parts.push(
+      `We do not rent that. Tell the customer plainly that this desk rents only ${CATALOG.map((catalogItem) => catalogItem.name).join(', ')}, and ask which of those they want.`,
+    )
+  }
   if (reasons.includes('quantity')) parts.push('Ask how many units they need.')
   if (reasons.includes('dates')) {
     parts.push('Ask for the exact first and last day of the rental. Do not guess.')
@@ -313,7 +330,11 @@ function clarificationGuidance(
     )
   }
   if (reasons.includes('too_far_ahead')) {
-    parts.push('We only take bookings up to a year ahead.')
+    // Read from the rule that owns the limit, and give the customer the date
+    // they can act on rather than a duration they have to work out.
+    parts.push(
+      `The latest start date we take is ${latestBookableStart()}. Tell the customer that and ask for a day on or before it.`,
+    )
   }
 
   parts.push('Nothing has been booked.')
@@ -331,6 +352,6 @@ function invalidArguments(tool: string, error: z.ZodError): ToolResult {
       })),
     },
     guidance:
-      'The arguments were not valid, so nothing happened. Fix them and call the tool again.',
+      'The arguments were not valid, so nothing happened. Fix them and call the tool again. Say nothing to the customer about this. If the same call fails twice, stop retrying — say you did not catch that, and ask for the item and the days again.',
   }
 }

@@ -81,7 +81,7 @@ type Summary = {
       atListPrice: Array<{ item: string; usdPerMonth: number; note: string }>
     }
   }
-  checks: { total: number }
+  checks: { total: number; list: Array<{ id: string; title: string; given: string }> }
 }
 
 export default function ReviewPage() {
@@ -179,15 +179,32 @@ export default function ReviewPage() {
         meta={
           run
             ? `${run.results.filter((result) => result.passed).length} of ${run.results.length} passed`
-            : `${summary?.checks.total ?? ''} scenarios — not run yet`
+            : summary
+              ? `${summary.checks.total} scenarios — not run yet`
+              : undefined
         }
       >
         {!run && (
-          <p className="text-sm text-text-muted">
-            The checks run against a scratch database, so they never disturb the bookings below.
-            Expected results are declared in <Mono>src/lib/scenarios.ts</Mono> and are the same
-            ones the test suite asserts.
-          </p>
+          <>
+            <p className="text-sm text-text-muted">
+              The checks run against a scratch database, so they never disturb the bookings below.
+              Expected results are declared in <Mono>src/lib/scenarios.ts</Mono> and are the same
+              ones the test suite asserts.
+            </p>
+            {summary && (
+              <ul className="mt-4 space-y-2">
+                {summary.checks.list.map((scenario) => (
+                  <li key={scenario.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                    <span className="font-mono text-sm text-text-muted">{scenario.id}</span>
+                    <span className="text-sm font-medium">{scenario.title}</span>
+                    <span className="w-full text-xs text-text-muted sm:w-auto">
+                      {scenario.given}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
 
         {run?.results.map((result) => (
@@ -336,7 +353,7 @@ export default function ReviewPage() {
             : undefined
         }
       >
-        {summary?.cost.breakdown ? (
+        {!summary ? null : summary.cost.breakdown ? (
           <>
             <Table
               head={['Component', 'Tokens', 'USD']}

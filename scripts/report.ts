@@ -32,6 +32,7 @@ async function main() {
   const measuredOn = new Date().toISOString().slice(0, 10)
 
   const blocks: Record<string, string> = {
+    tier: tierBlock(report),
     latency: latencyBlock(report, measuredOn),
     cost: costBlock(report, measuredOn),
     counts: countsBlock(report),
@@ -137,8 +138,16 @@ function costBlock(report: Awaited<ReturnType<typeof buildReport>>, on: string):
   )
   const withoutCache = (c.cachedTextInputTokens / 1_000_000) * report.cost.pricing.realtimeMini.textInput
 
-  out += `\nAll seven rows are charged and sum to the total. Cached tokens are a subset of\n`
-  out += `the input counts, billed at the cached rate rather than added on top.\n\n`
+  out += `
+All seven rows are charged, and the total is their exact sum — printed
+`
+  out += `rounded to four decimals, so adding up the column can miss it by a hundredth
+`
+  out += `of a cent. Cached tokens are a subset of the input counts, billed at the
+`
+  out += `cached rate rather than added on top.
+
+`
   out += `Audio in and out together are ${share(c.audioOutputUsd + c.audioInputUsd + c.cachedAudioInputUsd)} of the bill, so shortening what the agent\n`
   out += `says is worth more than any prompt optimisation. ${cachedShare}% of text input was\n`
   out += `served from cache; at the uncached rate those tokens would have cost\n`
@@ -254,3 +263,29 @@ main().catch((error) => {
   console.error(error)
   process.exit(1)
 })
+
+/**
+ * What the model choice cost, computed rather than claimed. The full tier's
+ * rates sit in pricing.ts for exactly this purpose; here they are applied to
+ * the tokens actually recorded.
+ */
+function tierBlock(report: Awaited<ReturnType<typeof buildReport>>): string {
+  const mine = report.cost.breakdown
+  const full = report.cost.ifFullTier
+  if (!mine?.usdPerMinute || !full?.usdPerMinute) {
+    return 'No billed responses recorded yet, so the tier comparison has nothing to compute from.'
+  }
+
+  const ratio = full.usdPerMinute / mine.usdPerMinute
+  const anchor = report.cost.pricing.anchor
+  const model = report.cost.pricing.realtimeFull.model
+
+  let out = `The same ${mine.minutes.toFixed(1)} recorded minutes, priced at the full\n`
+  out += `\`${model}\` tier instead, would have cost **$${full.totalUsd.toFixed(2)} rather than\n`
+  out += `$${mine.totalUsd.toFixed(2)}** — $${full.usdPerMinute.toFixed(4)} per minute against `
+  out += `$${mine.usdPerMinute.toFixed(4)},\nor **${ratio.toFixed(1)}× the bill**. `
+  out += `For scale, that is ${(full.usdPerMinute / anchor.usdPerMinute).toFixed(1)}× the `
+  out += `$${anchor.usdPerMinute}/min flat\nrate of \`${anchor.model}\`, the same vendor's `
+  out += `full-duplex voice model.`
+  return out
+}
