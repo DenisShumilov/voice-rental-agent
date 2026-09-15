@@ -27,7 +27,7 @@ Open:          /         the storefront
 | Storefront | https://voice-rental-agent.vercel.app |
 | Reviewer view | https://voice-rental-agent.vercel.app/review |
 | Walkthrough video | https://youtu.be/YntbV0qtje8 |
-| Repository | `DenisShumilov/voice-rental-agent` — private; access granted to the reviewer on submission |
+| Repository | https://github.com/DenisShumilov/voice-rental-agent |
 
 Press **Run all checks** on the reviewer view to re-run the six required
 scenarios against a scratch in-memory database. It reports expected vs actual
