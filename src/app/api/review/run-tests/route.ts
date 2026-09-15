@@ -23,7 +23,21 @@ export const maxDuration = 60
  */
 const SCRATCH_DATABASE = ':memory:'
 
+/**
+ * One run at a time. The swap below is process-global, so two overlapping
+ * requests would let the first run's cleanup hand the LIVE database back while
+ * the second is still running — and a scenario begins by dropping every table.
+ * Runs are seconds long, so queueing is cheaper than the failure it prevents.
+ */
+let running: Promise<unknown> = Promise.resolve()
+
 export async function POST() {
+  const ours = running.then(runOnce, runOnce)
+  running = ours.catch(() => undefined)
+  return ours
+}
+
+async function runOnce() {
   const liveDatabase = process.env.DATABASE_URL
 
   process.env.DATABASE_URL = SCRATCH_DATABASE

@@ -52,10 +52,17 @@ export async function dispatchTool(
 
   const result = await route(sessionId, tool, rawArgs)
 
+  // The token is the key to a booking, so it is redacted before the facts
+  // reach the event log — the log is readable, and a key in a readable place
+  // is not a key. The reviewer still sees that one was issued.
+  const { confirmation_token, ...loggableFacts } = result.facts as Record<string, unknown>
   await logEvent(sessionId, 'tool_result', {
     tool: result.tool,
     status: result.status,
-    facts: result.facts,
+    facts:
+      confirmation_token === undefined
+        ? loggableFacts
+        : { ...loggableFacts, confirmation_token: '[redacted]' },
   })
 
   return result

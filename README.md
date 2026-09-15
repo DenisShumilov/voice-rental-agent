@@ -258,7 +258,7 @@ the live figures.
 never transcribed by hand.
 
 <!-- figures:latency -->
-Measured on 2026-09-14 across 11 recorded conversations,
+Measured on 2026-09-15 across 10 recorded conversations,
 silence window 500 ms. All figures in milliseconds.
 
 | Measure | n | min | median | p95 | max |
@@ -294,7 +294,7 @@ latency.
 **Cost.**
 
 <!-- figures:cost -->
-Measured on 2026-09-14 from the token counts the API returned with each
+Measured on 2026-09-15 from the token counts the API returned with each
 response — 124 responses across 13.8 minutes of conversation.
 
 | Component | Tokens | USD | Share |

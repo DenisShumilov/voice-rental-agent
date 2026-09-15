@@ -8,7 +8,6 @@ import { CATALOG } from '@/config/catalog'
 import { getAvailability, isCalendarDate } from '@/lib/availability'
 import { listReservations } from '@/lib/booking'
 import { getDraftBySession } from '@/lib/drafts'
-import { listEvents } from '@/lib/events'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,10 +30,9 @@ export async function GET(request: Request) {
         )
       : null
 
-  const [draft, reservations, events] = await Promise.all([
+  const [draft, reservations] = await Promise.all([
     sessionId ? getDraftBySession(sessionId) : Promise.resolve(null),
     listReservations(),
-    sessionId ? listEvents(sessionId) : Promise.resolve([]),
   ])
 
   // The confirmation token is the key to a booking. The screen never needs it —
@@ -55,6 +53,5 @@ export async function GET(request: Request) {
     })),
     draft: safeDraft,
     reservations,
-    events,
   })
 }

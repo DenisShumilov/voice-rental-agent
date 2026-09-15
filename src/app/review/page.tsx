@@ -615,14 +615,13 @@ function HostingTable({ hosting }: { hosting: Summary['cost']['hosting'] }) {
         rows={[
           ...hosting.current.map((row) => [row.item, usd(row.usdPerMonth), row.note]),
           ['What we pay', usd(total(hosting.current)), ''],
-          ...hosting.atListPrice.map((row) => [row.item, usd(row.usdPerMonth), row.note]),
-          ['List price of those same tiers', usd(total(hosting.atListPrice)), ''],
         ]}
       />
       <p className="mt-2 text-xs text-text-muted">
-        This runs on free tiers, so hosting costs us nothing — but a free tier is not a free
-        service, so the list price of the same capacity is shown beside it rather than reported as
-        zero. Read from {hosting.sources.join(' and ')} on {hosting.verifiedOn}.
+        Hosting costs this project nothing — both services have a free tier and this sits inside
+        both. A free tier is not a free service, though: the same capacity lists at{' '}
+        {usd(total(hosting.atListPrice))} a month. Read from {hosting.sources.join(' and ')} on{' '}
+        {hosting.verifiedOn}.
       </p>
     </div>
   )

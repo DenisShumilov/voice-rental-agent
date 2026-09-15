@@ -19,7 +19,10 @@ export const metadata: Metadata = {
   description: COPY.subheadline,
 }
 
-export default function RootLayout({ children }: LayoutProps<'/'>) {
+// Written out rather than using the generated `LayoutProps<'/'>`: that type
+// lives in .next, which is git-ignored, so `npm run check` on a fresh clone
+// failed to typecheck before anything had been built.
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"

@@ -64,9 +64,9 @@ export const HOSTING = {
     { item: 'Turso Free', usdPerMonth: 0, note: '5 GB, 500M row reads per month' },
   ],
   /**
-   * What the tiers we use for free are worth. Not a plan to buy them — the
-   * brief's rule is that free credits are not zero operating cost, so the
-   * number is stated rather than reported as zero.
+   * What the tiers we use for free are worth, as a single figure in a sentence
+   * rather than a table of plans nobody is buying. The brief's rule is that
+   * free credits are not zero operating cost, so the number is stated.
    */
   atListPrice: [
     { item: 'Vercel Pro', usdPerMonth: 20, note: 'The paid tier above Hobby' },
